@@ -1,0 +1,13 @@
+[package]
+name = "pbr_renderer"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.103"
+glam = "0.33.2"
+pollster = "1.0.1"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+wgpu = "30.0.0"
+winit = "0.30.13"
