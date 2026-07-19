@@ -9,6 +9,7 @@ use winit::window::WindowId;
 
 mod app;
 pub mod renderer;
+pub mod display;
 
 #[derive(Default)]
 pub enum AppRunner {

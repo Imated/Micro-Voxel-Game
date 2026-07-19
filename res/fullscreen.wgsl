@@ -14,10 +14,9 @@ fn vs_main(
     return out;
 }
 
-struct GlobalsUniform {
-    screen_size: vec4<u32>
+struct DisplayUniform {
+    size_aspect: vec4<f32>
 };
-
 
 struct Ray {
     origin: vec3<f32>,
@@ -25,15 +24,15 @@ struct Ray {
 };
 
 @group(0) @binding(0)
-var<uniform> global_variables: GlobalsUniform;
+var<uniform> display: DisplayUniform;
 
 @fragment
 fn fs_main(
     in: VertexOutput
 ) -> @location(0) vec4<f32> {
-    let screen_width: f32 = f32(global_variables.screen_size.x);
-    let screen_height: f32 = f32(global_variables.screen_size.y);
-    let aspect = screen_width / screen_height;
+    let screen_width = display.size_aspect.x;
+    let screen_height = display.size_aspect.y;
+    let aspect = display.size_aspect.z;
 
     const focal_len = 1;
     const camera_pos: vec3<f32> = vec3<f32>(0);
