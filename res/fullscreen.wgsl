@@ -8,29 +8,38 @@ fn vs_main(
     @builtin(vertex_index) in_vertex_index: u32,
 ) -> VertexOutput {
     var out: VertexOutput;
-    var uv: vec2<f32> = vec2<f32>(f32((in_vertex_index << 1) & 2), f32(in_vertex_index & 2));
-    out.clip_position = vec4<f32>(uv * vec2<f32>(2, -2) + vec2<f32>(-1, 1), 0, 1);
-    out.uv = uv;
+    out.uv = vec2<f32>(f32((in_vertex_index << 1) & 2), f32(in_vertex_index & 2));
+    out.clip_position = vec4<f32>(out.uv * 2 - 1, 0, 1);
+    out.uv.y = 1 - out.uv.y;
     return out;
 }
+
+struct GlobalsUniform {
+    screen_size: vec4<u32>
+};
+
 
 struct Ray {
     origin: vec3<f32>,
     direction: vec3<f32>,
 };
 
+@group(0) @binding(0)
+var<uniform> global_variables: GlobalsUniform;
+
 @fragment
 fn fs_main(
     in: VertexOutput
 ) -> @location(0) vec4<f32> {
-    const screen_width: f32 = 800;
-    const screen_height: f32 = 600;
-    const aspect = screen_width / screen_height;
+    let screen_width: f32 = f32(global_variables.screen_size.x);
+    let screen_height: f32 = f32(global_variables.screen_size.y);
+    let aspect = screen_width / screen_height;
+
     const focal_len = 1;
     const camera_pos: vec3<f32> = vec3<f32>(0);
     let uv = in.uv;
     let centered = uv * 2.0 - 1.0;
-    let screen_point = vec3<f32>(centered.x * aspect, -centered.y, -focal_len);
+    let screen_point = vec3<f32>(centered.x * aspect, centered.y, -focal_len);
 
     var ray = Ray(camera_pos, screen_point - camera_pos);
 

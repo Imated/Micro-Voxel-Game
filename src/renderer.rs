@@ -1,9 +1,19 @@
+use anyhow::bail;
+use bytemuck::{Pod, Zeroable};
+use glam::UVec4;
 use std::num::NonZeroU32;
 use std::sync::Arc;
-use anyhow::bail;
-use wgpu::{include_wgsl, Adapter, BackendOptions, Backends, BlendState, Color, ColorTargetState, ColorWrites, CommandEncoderDescriptor, CurrentSurfaceTexture, Device, DeviceDescriptor, ExperimentalFeatures, Face, Features, FragmentState, FrontFace, Instance, InstanceDescriptor, InstanceFlags, Limits, LoadOp, LoadOpDontCare, MemoryBudgetThresholds, MemoryHints, MultisampleState, Operations, PipelineCompilationOptions, PipelineLayoutDescriptor, PolygonMode, PowerPreference, PresentMode, PrimitiveState, PrimitiveTopology, Queue, RenderPassColorAttachment, RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor, RequestAdapterOptions, ShaderModuleDescriptor, StoreOp, Surface, SurfaceColorSpace, SurfaceConfiguration, TextureUsages, Trace, VertexState};
+use bytemuck::checked::cast_slice;
 use wgpu::wgt::TextureViewDescriptor;
+use wgpu::{include_wgsl, Adapter, BackendOptions, Backends, BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, BlendState, Buffer, BufferBindingType, BufferUsages, ColorTargetState, ColorWrites, CommandEncoderDescriptor, CurrentSurfaceTexture, Device, DeviceDescriptor, ExperimentalFeatures, Features, FragmentState, FrontFace, Instance, InstanceDescriptor, InstanceFlags, Limits, LoadOp, LoadOpDontCare, MemoryBudgetThresholds, MemoryHints, MultisampleState, Operations, PipelineCompilationOptions, PipelineLayoutDescriptor, PolygonMode, PowerPreference, PresentMode, PrimitiveState, PrimitiveTopology, Queue, RenderPassColorAttachment, RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor, RequestAdapterOptions, ShaderStages, StoreOp, Surface, SurfaceColorSpace, SurfaceConfiguration, TextureUsages, Trace, VertexState};
+use wgpu::util::{BufferInitDescriptor, DeviceExt, RenderEncoder};
 use winit::window::Window;
+
+#[repr(C)]
+#[derive(Debug, Copy, Clone, Default, Pod, Zeroable)]
+pub struct GlobalsUniform {
+    screen_size: UVec4,
+}
 
 pub struct Renderer {
     instance: Instance,
@@ -15,7 +25,11 @@ pub struct Renderer {
     surface_config: SurfaceConfiguration,
     is_surface_configured: bool,
 
-    fullscreen_pipeline: RenderPipeline
+    fullscreen_pipeline: RenderPipeline,
+
+    globals_uniform: GlobalsUniform,
+    globals_buffer: Buffer,
+    globals_bind_group: BindGroup,
 }
 
 impl Renderer {
@@ -71,8 +85,47 @@ impl Renderer {
             color_space: SurfaceColorSpace::Auto,
         };
 
+        let mut globals_uniform = GlobalsUniform::default();
+        globals_uniform.screen_size = UVec4::new(size.width, size.height, 0, 0);
+        let globals_buffer = device.create_buffer_init(&BufferInitDescriptor {
+            label: Some("Global Variables Buffer"),
+            contents: cast_slice(&[globals_uniform]),
+            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+        });
+
+        let globals_bind_group_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+            label: Some("Global Variables Bind Group Layout"),
+            entries: &[
+                BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: ShaderStages::FRAGMENT,
+                    ty: BindingType::Buffer {
+                        ty: BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }
+            ],
+        });
+
+        let globals_bind_group = device.create_bind_group(&BindGroupDescriptor {
+            label: Some("Global Variables Bind Group"),
+            layout: &globals_bind_group_layout,
+            entries: &[
+                BindGroupEntry {
+                    binding: 0,
+                    resource: globals_buffer.as_entire_binding(),
+                }
+            ],
+        });
+
         let fullscreen_shader = device.create_shader_module(include_wgsl!(".././res/fullscreen.wgsl"));
-        let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor::default());
+        let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
+            label: Some("Fullscreen Pipeline Layout"),
+            bind_group_layouts: &[Some(&globals_bind_group_layout)],
+            immediate_size: 0,
+        });
         let fullscreen_pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
             label: Some("Fullscreen Pipeline"),
             layout: Some(&pipeline_layout),
@@ -96,7 +149,7 @@ impl Renderer {
                 topology: PrimitiveTopology::TriangleList,
                 strip_index_format: None,
                 front_face: FrontFace::Ccw,
-                cull_mode: Some(Face::Front),
+                cull_mode: None,
                 unclipped_depth: false,
                 polygon_mode: PolygonMode::Fill,
                 conservative: false,
@@ -120,6 +173,9 @@ impl Renderer {
             surface_config: config,
             is_surface_configured: false,
             fullscreen_pipeline,
+            globals_uniform,
+            globals_buffer,
+            globals_bind_group,
         })
     }
 
@@ -127,6 +183,8 @@ impl Renderer {
         self.surface_config.width = width.into();
         self.surface_config.height = height.into();
         self.surface.configure(&self.device, &self.surface_config);
+        self.globals_uniform.screen_size = UVec4::new(width.into(), height.into(), 0, 0);
+        self.queue.write_buffer(&self.globals_buffer, 0, cast_slice(&[self.globals_uniform]));
         self.is_surface_configured = true;
     }
 
@@ -173,6 +231,7 @@ impl Renderer {
             });
 
             render_pass.set_pipeline(&self.fullscreen_pipeline);
+            render_pass.set_bind_group(0, &self.globals_bind_group, &[]);
             render_pass.draw(0..3, 0..1);
         }
 
