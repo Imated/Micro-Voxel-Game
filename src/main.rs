@@ -8,8 +8,8 @@ use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::window::WindowId;
 
 mod app;
-pub mod renderer;
 pub mod display;
+pub mod render_context;
 
 #[derive(Default)]
 pub enum AppRunner {
