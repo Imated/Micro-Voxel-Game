@@ -1,22 +1,19 @@
 use crate::buffer::TypedBuffer;
 use crate::render_context::RenderContext;
-use bytemuck::checked::cast_slice;
 use bytemuck::{Pod, Zeroable};
 use glam::Vec4;
 use std::num::NonZeroU32;
 use std::sync::Arc;
-use wgpu::naga::proc::NameKey::Type;
-use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use wgpu::wgt::TextureViewDescriptor;
 use wgpu::{
-    Adapter, BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor,
-    BindGroupLayoutEntry, BindingType, BlendState, Buffer, BufferBindingType, BufferUsages,
-    ColorTargetState, ColorWrites, CommandEncoder, CurrentSurfaceTexture, Device, FragmentState,
-    FrontFace, Instance, LoadOp, LoadOpDontCare, MultisampleState, Operations,
-    PipelineCompilationOptions, PipelineLayoutDescriptor, PolygonMode, PresentMode, PrimitiveState,
-    PrimitiveTopology, Queue, RenderPassColorAttachment, RenderPassDescriptor, RenderPipeline,
-    RenderPipelineDescriptor, ShaderStages, StoreOp, Surface, SurfaceColorSpace,
-    SurfaceConfiguration, SurfaceTexture, TextureUsages, TextureView, VertexState, include_wgsl,
+    include_wgsl, BindGroup, BindGroupDescriptor
+    , BindGroupLayoutDescriptor,
+    BlendState, ColorTargetState, ColorWrites, CommandEncoder, CurrentSurfaceTexture,
+    FragmentState, FrontFace, LoadOp, LoadOpDontCare, MultisampleState,
+    Operations, PipelineCompilationOptions, PipelineLayoutDescriptor, PolygonMode, PresentMode,
+    PrimitiveState, PrimitiveTopology, RenderPassColorAttachment, RenderPassDescriptor,
+    RenderPipeline, RenderPipelineDescriptor, ShaderStages, StoreOp, Surface,
+    SurfaceColorSpace, SurfaceConfiguration, SurfaceTexture, TextureUsages, TextureView, VertexState,
 };
 use winit::window::Window;
 
