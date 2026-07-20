@@ -7,7 +7,7 @@ use winit::dpi::PhysicalSize;
 use winit::event::{KeyEvent, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::{KeyCode, PhysicalKey};
-use winit::window::{Window, WindowAttributes};
+use winit::window::{Fullscreen, Window, WindowAttributes};
 
 pub struct App {
     window: Arc<Window>,
@@ -22,6 +22,7 @@ impl App {
                 .create_window(WindowAttributes::default().with_title("ea").with_inner_size(PhysicalSize::new(800, 600)))
                 .unwrap(),
         );
+
         Self {
             renderer: pollster::block_on(Renderer::new(window.clone()))
                 .expect("Failed to create renderer."),
@@ -68,6 +69,14 @@ impl App {
                 ..
             } => match (code, key_state.is_pressed()) {
                 (KeyCode::Escape, true) => event_loop.exit(),
+                (KeyCode::F11, true) => {
+                    if self.window.fullscreen().is_some() {
+                        self.window.set_fullscreen(None);
+                    }
+                    else {
+                        self.window.set_fullscreen(Some(Fullscreen::Borderless(None)));
+                    }
+                }
                 _ => {}
             },
             WindowEvent::CloseRequested => {
