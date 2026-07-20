@@ -1,11 +1,16 @@
 use crate::AppRunner::Running;
 use crate::app::App;
+use std::num::NonZeroU32;
+use std::sync::Arc;
+use std::time::Instant;
 use tracing::{Level, info};
 use tracing_subscriber::EnvFilter;
 use winit::application::ApplicationHandler;
-use winit::event::WindowEvent;
+use winit::dpi::PhysicalSize;
+use winit::event::{KeyEvent, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
-use winit::window::WindowId;
+use winit::keyboard::{KeyCode, PhysicalKey};
+use winit::window::{Window, WindowAttributes, WindowId};
 
 mod app;
 pub mod display;
@@ -15,12 +20,30 @@ pub mod render_context;
 pub enum AppRunner {
     #[default]
     Uninitialized,
-    Running(App),
+    Running {
+        app: App,
+        frame_count: i64,
+        window: Arc<Window>,
+    },
 }
 
 impl ApplicationHandler for AppRunner {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        *self = Running(App::new(event_loop));
+        let window = Arc::new(
+            event_loop
+                .create_window(
+                    WindowAttributes::default()
+                        .with_title("ea")
+                        .with_inner_size(PhysicalSize::new(800, 600)),
+                )
+                .unwrap(),
+        );
+
+        *self = Running {
+            app: App::new(window.clone()),
+            frame_count: 0,
+            window,
+        };
     }
 
     fn window_event(
@@ -29,11 +52,60 @@ impl ApplicationHandler for AppRunner {
         window_id: WindowId,
         event: WindowEvent,
     ) {
-        let Running(app) = self else {
+        let Running {
+            app,
+            frame_count,
+            window,
+        } = self
+        else {
             return;
         };
 
-        app.on_event(event_loop, event);
+        match event {
+            WindowEvent::RedrawRequested => {
+                let prev = Instant::now();
+
+                app.render();
+
+                if *frame_count % 512 == 0 {
+                    window.set_title(&format!(
+                        "Micro Voxels - {:.1?} FPS",
+                        1.0 / prev.elapsed().as_secs_f32()
+                    ));
+                }
+
+                *frame_count += 1;
+                window.request_redraw();
+            }
+            WindowEvent::Resized(size) => {
+                let (Some(width), Some(height)) =
+                    (NonZeroU32::new(size.width), NonZeroU32::new(size.height))
+                else {
+                    return;
+                };
+
+                app.on_resize(width, height);
+            }
+
+            WindowEvent::KeyboardInput {
+                event:
+                    KeyEvent {
+                        physical_key: PhysicalKey::Code(code),
+                        state: key_state,
+                        ..
+                    },
+                ..
+            } => match (code, key_state.is_pressed()) {
+                (KeyCode::Escape, true) => event_loop.exit(),
+                (code, is_pressed) => {
+                    app.on_key_event(code, is_pressed);
+                }
+            },
+            WindowEvent::CloseRequested => {
+                event_loop.exit();
+            }
+            _ => {}
+        }
     }
 }
 

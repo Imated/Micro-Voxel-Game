@@ -2,34 +2,18 @@ use crate::display::Display;
 use crate::render_context::RenderContext;
 use std::num::NonZeroU32;
 use std::sync::Arc;
-use std::time::Instant;
-use tracing::error;
 use wgpu::CommandEncoderDescriptor;
-use winit::dpi::PhysicalSize;
-use winit::event::{KeyEvent, WindowEvent};
-use winit::event_loop::ActiveEventLoop;
-use winit::keyboard::{KeyCode, PhysicalKey};
-use winit::window::{Fullscreen, Window, WindowAttributes};
+use winit::keyboard::KeyCode;
+use winit::window::{Fullscreen, Window};
 
 pub struct App {
     window: Arc<Window>,
     context: RenderContext,
     display: Display,
-    frame_count: i64,
 }
 
 impl App {
-    pub fn new(event_loop: &ActiveEventLoop) -> Self {
-        let window = Arc::new(
-            event_loop
-                .create_window(
-                    WindowAttributes::default()
-                        .with_title("ea")
-                        .with_inner_size(PhysicalSize::new(800, 600)),
-                )
-                .unwrap(),
-        );
-
+    pub fn new(window: Arc<Window>) -> Self {
         let context = pollster::block_on(RenderContext::new()).expect("Failed to create renderer.");
         let display = Display::new(&context, window.clone()).expect("Failed to create display.");
 
@@ -37,74 +21,40 @@ impl App {
             context,
             window,
             display,
-            frame_count: 0,
         }
     }
 
-    pub fn on_event(&mut self, event_loop: &ActiveEventLoop, event: WindowEvent) {
-        match event {
-            WindowEvent::RedrawRequested => {
-                let prev = Instant::now();
+    pub fn render(&self) {
+        // acquire frame and skip if smth happened and hope it works next frame
+        let Some(frame) = self.display.acquire_frame(&self.context) else {
+            return;
+        };
 
-                // acquire frame and skip if smth happened and hope it works next frame
-                let Some(frame) = self.display.acquire_frame(&self.context) else {
-                    return;
-                };
+        let mut encoder = self
+            .context
+            .device
+            .create_command_encoder(&CommandEncoderDescriptor::default());
 
-                let mut encoder = self
-                    .context
-                    .device
-                    .create_command_encoder(&CommandEncoderDescriptor::default());
+        self.display.fullscreen_pass(&mut encoder, &frame);
 
-                self.display.fullscreen_pass(&mut encoder, &frame);
+        self.context.queue.submit([encoder.finish()]);
+        self.window.pre_present_notify();
+        self.context.queue.present(frame.surface_texture);
+    }
 
-                self.context.queue.submit([encoder.finish()]);
-                self.window.pre_present_notify();
-                self.context.queue.present(frame.surface_texture);
+    pub fn on_resize(&mut self, width: NonZeroU32, height: NonZeroU32) {
+        self.display.resize(&self.context, width, height);
+    }
 
-                // show fps
-                if self.frame_count % 512 == 0 {
-                    self.window.set_title(&format!(
-                        "Micro Voxels - {:.1?} FPS",
-                        1.0 / prev.elapsed().as_secs_f32()
-                    ));
+    pub fn on_key_event(&self, key_code: KeyCode, is_pressed: bool) {
+        match (key_code, is_pressed) {
+            (KeyCode::F11, true) => {
+                if self.window.fullscreen().is_some() {
+                    self.window.set_fullscreen(None);
+                } else {
+                    self.window
+                        .set_fullscreen(Some(Fullscreen::Borderless(None)));
                 }
-
-                self.frame_count += 1;
-                self.window.request_redraw();
-            }
-            WindowEvent::Resized(size) => {
-                let (Some(width), Some(height)) =
-                    (NonZeroU32::new(size.width), NonZeroU32::new(size.height))
-                else {
-                    return;
-                };
-
-                self.display.resize(&self.context, width, height);
-            }
-
-            WindowEvent::KeyboardInput {
-                event:
-                    KeyEvent {
-                        physical_key: PhysicalKey::Code(code),
-                        state: key_state,
-                        ..
-                    },
-                ..
-            } => match (code, key_state.is_pressed()) {
-                (KeyCode::Escape, true) => event_loop.exit(),
-                (KeyCode::F11, true) => {
-                    if self.window.fullscreen().is_some() {
-                        self.window.set_fullscreen(None);
-                    } else {
-                        self.window
-                            .set_fullscreen(Some(Fullscreen::Borderless(None)));
-                    }
-                }
-                _ => {}
-            },
-            WindowEvent::CloseRequested => {
-                event_loop.exit();
             }
             _ => {}
         }
