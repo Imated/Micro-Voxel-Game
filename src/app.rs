@@ -18,8 +18,8 @@ impl App {
         let display = Display::new(&context, window.clone()).expect("Failed to create display.");
 
         Self {
-            context,
             window,
+            context,
             display,
         }
     }

@@ -1,9 +1,11 @@
+use crate::buffer::TypedBuffer;
 use crate::render_context::RenderContext;
 use bytemuck::checked::cast_slice;
 use bytemuck::{Pod, Zeroable};
 use glam::Vec4;
 use std::num::NonZeroU32;
 use std::sync::Arc;
+use wgpu::naga::proc::NameKey::Type;
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use wgpu::wgt::TextureViewDescriptor;
 use wgpu::{
@@ -28,10 +30,10 @@ pub struct Display {
     surface: Surface<'static>,
     surface_config: SurfaceConfiguration,
     is_surface_configured: bool,
-    pub pipeline: RenderPipeline,
+    pipeline: RenderPipeline,
 
     display_uniform: DisplayUniform,
-    display_buffer: Buffer,
+    display_buffer: TypedBuffer<DisplayUniform>,
     display_bind_group: BindGroup,
 }
 
@@ -60,43 +62,28 @@ impl Display {
             color_space: SurfaceColorSpace::Auto,
         };
 
-        let mut display_uniform = DisplayUniform::default();
-        display_uniform.size_aspect = Vec4::new(
-            size.width as f32,
-            size.height as f32,
-            size.width as f32 / size.height as f32,
-            0.0,
-        );
-        let display_buffer = context.device.create_buffer_init(&BufferInitDescriptor {
-            label: Some("Display Variables Buffer"),
-            contents: cast_slice(&[display_uniform]),
-            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-        });
+        let display_uniform = DisplayUniform {
+            size_aspect: Vec4::new(
+                size.width as f32,
+                size.height as f32,
+                size.width as f32 / size.height as f32,
+                0.0,
+            ),
+        };
+        let display_buffer = TypedBuffer::new_uniform(context, display_uniform);
 
         let display_bind_group_layout =
             context
                 .device
                 .create_bind_group_layout(&BindGroupLayoutDescriptor {
                     label: Some("Display Variables Bind Group Layout"),
-                    entries: &[BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: ShaderStages::FRAGMENT,
-                        ty: BindingType::Buffer {
-                            ty: BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    }],
+                    entries: &[display_buffer.as_layout_entry(0, ShaderStages::FRAGMENT)],
                 });
 
         let display_bind_group = context.device.create_bind_group(&BindGroupDescriptor {
             label: Some("Display Variables Bind Group"),
             layout: &display_bind_group_layout,
-            entries: &[BindGroupEntry {
-                binding: 0,
-                resource: display_buffer.as_entire_binding(),
-            }],
+            entries: &[display_buffer.as_bind_group_entry(0)],
         });
 
         let shader = context
@@ -169,9 +156,7 @@ impl Display {
         self.surface
             .configure(&context.device, &self.surface_config);
         self.display_uniform.size_aspect = Vec4::new(width, height, width / height, 0.0);
-        context
-            .queue
-            .write_buffer(&self.display_buffer, 0, cast_slice(&[self.display_uniform]));
+        self.display_buffer.update(context, self.display_uniform);
         self.is_surface_configured = true;
     }
 
@@ -208,7 +193,7 @@ impl Display {
 
     pub fn fullscreen_pass(&self, encoder: &mut CommandEncoder, frame: &Frame) {
         let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
-            label: Some("Clear Pass"),
+            label: Some("Display Pass"),
             color_attachments: &[Some(RenderPassColorAttachment {
                 view: &frame.surface_view,
                 resolve_target: None,

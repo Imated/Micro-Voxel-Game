@@ -13,6 +13,7 @@ use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{Window, WindowAttributes, WindowId};
 
 mod app;
+pub mod buffer;
 pub mod display;
 pub mod render_context;
 
