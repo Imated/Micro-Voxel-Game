@@ -13,10 +13,12 @@ use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{Window, WindowAttributes, WindowId};
 
 mod app;
+mod blit;
 pub mod buffer;
 pub mod camera;
 pub mod display;
 pub mod render_context;
+pub mod renderer;
 
 #[derive(Default)]
 pub enum AppRunner {
@@ -72,13 +74,9 @@ impl ApplicationHandler for AppRunner {
 
                 app.render(*delta_time);
 
-
                 *delta_time = prev.elapsed().as_secs_f64();
                 if *frame_count % 512 == 0 {
-                    window.set_title(&format!(
-                        "Micro Voxels - {:.1?} FPS",
-                        1.0 / *delta_time
-                    ));
+                    window.set_title(&format!("Micro Voxels - {:.1?} FPS", 1.0 / *delta_time));
                 }
 
                 *frame_count += 1;

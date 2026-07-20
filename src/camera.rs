@@ -1,10 +1,12 @@
+use crate::buffer::TypedBuffer;
+use crate::render_context::RenderContext;
 use bytemuck::{Pod, Zeroable};
 use glam::dcamera::lh::view::look_to_mat4;
 use glam::{DMat4, DVec3, IVec2, Mat4, Vec2, Vec3, Vec4};
-use wgpu::{BindGroup, BindGroupDescriptor, BindGroupLayout, BindGroupLayoutDescriptor, ShaderStages};
+use wgpu::{
+    BindGroup, BindGroupDescriptor, BindGroupLayout, BindGroupLayoutDescriptor, ShaderStages,
+};
 use winit::keyboard::KeyCode;
-use crate::buffer::TypedBuffer;
-use crate::render_context::RenderContext;
 
 #[rustfmt::skip]
 pub const OPENGL_TO_WGPU_MATRIX: Mat4 = Mat4::from_cols(
@@ -23,7 +25,7 @@ pub struct CameraUniform {
 
 #[derive(Debug)]
 pub struct Camera {
-    pub  position: DVec3,
+    pub position: DVec3,
     yaw: f64,
     pitch: f64,
 
@@ -36,7 +38,12 @@ pub struct Camera {
 }
 
 impl Camera {
-    pub fn new<V: Into<DVec3>, Y: Into<f64>, P: Into<f64>>(context: &RenderContext, position: V, yaw: Y, pitch: P) -> Self {
+    pub fn new<V: Into<DVec3>, Y: Into<f64>, P: Into<f64>>(
+        context: &RenderContext,
+        position: V,
+        yaw: Y,
+        pitch: P,
+    ) -> Self {
         let position = position.into();
 
         let uniform = CameraUniform {
@@ -44,13 +51,12 @@ impl Camera {
             rotation: Mat4::IDENTITY,
         };
         let buffer = TypedBuffer::new_uniform(context, uniform);
-        let layout =
-            context
-                .device
-                .create_bind_group_layout(&BindGroupLayoutDescriptor {
-                    label: Some("Camera Bind Group Layout"),
-                    entries: &[buffer.as_layout_entry(0, ShaderStages::FRAGMENT)],
-                });
+        let layout = context
+            .device
+            .create_bind_group_layout(&BindGroupLayoutDescriptor {
+                label: Some("Camera Bind Group Layout"),
+                entries: &[buffer.as_layout_entry(0, ShaderStages::FRAGMENT)],
+            });
         let bind_group = context.device.create_bind_group(&BindGroupDescriptor {
             label: Some("Camera Bind Group"),
             layout: &layout,
@@ -85,16 +91,16 @@ impl Camera {
         match key_code {
             KeyCode::KeyW | KeyCode::ArrowUp => {
                 self.direction.y = amount;
-            },
+            }
             KeyCode::KeyS | KeyCode::ArrowDown => {
                 self.direction.y = -amount;
-            },
+            }
             KeyCode::KeyD | KeyCode::ArrowRight => {
                 self.direction.x = amount;
-            },
+            }
             KeyCode::KeyA | KeyCode::ArrowLeft => {
                 self.direction.x = -amount;
-            },
+            }
             _ => {}
         }
     }

@@ -1,42 +1,20 @@
-use crate::buffer::TypedBuffer;
 use crate::render_context::RenderContext;
-use bytemuck::{Pod, Zeroable};
-use glam::{Mat4, Vec3, Vec4};
+use crate::renderer::RenderTexture;
 use std::num::NonZeroU32;
 use std::sync::Arc;
-use wgpu::wgt::TextureViewDescriptor;
-use wgpu::{
-    BindGroup, BindGroupDescriptor, BindGroupLayoutDescriptor, BlendState, ColorTargetState,
-    ColorWrites, CommandEncoder, CurrentSurfaceTexture, FragmentState, FrontFace, LoadOp,
-    LoadOpDontCare, MultisampleState, Operations, PipelineCompilationOptions,
-    PipelineLayoutDescriptor, PolygonMode, PresentMode, PrimitiveState, PrimitiveTopology,
-    RenderPassColorAttachment, RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor,
-    ShaderStages, StoreOp, Surface, SurfaceColorSpace, SurfaceConfiguration, SurfaceTexture,
-    TextureUsages, TextureView, VertexState, include_wgsl,
-};
-use winit::keyboard::KeyCode;
+use wgpu::{CurrentSurfaceTexture, Extent3d, PresentMode, Surface, SurfaceColorSpace, SurfaceConfiguration, SurfaceTexture, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages, TextureView, TextureViewDescriptor};
 use winit::window::Window;
-use crate::camera::{Camera, CameraUniform};
-
-#[repr(C)]
-#[derive(Debug, Copy, Clone, Default, Pod, Zeroable)]
-pub struct DisplayUniform {
-    size_aspect: Vec4,
-}
 
 pub struct Display {
     surface: Surface<'static>,
     surface_config: SurfaceConfiguration,
     is_surface_configured: bool,
-    pipeline: RenderPipeline,
 
-    display_uniform: DisplayUniform,
-    display_buffer: TypedBuffer<DisplayUniform>,
-    display_bind_group: BindGroup,
+    output: RenderTexture,
 }
 
 impl Display {
-    pub fn new(context: &RenderContext, window: Arc<Window>, camera: &Camera) -> anyhow::Result<Self> {
+    pub fn new(context: &RenderContext, window: Arc<Window>) -> anyhow::Result<Self> {
         let size = window.inner_size();
         let surface = context.instance.create_surface(window.clone())?;
 
@@ -60,101 +38,26 @@ impl Display {
             color_space: SurfaceColorSpace::Auto,
         };
 
-        let display_uniform = DisplayUniform {
-            size_aspect: Vec4::new(
-                size.width as f32,
-                size.height as f32,
-                size.width as f32 / size.height as f32,
-                0.0,
-            ),
-        };
-
-
-        let display_buffer = TypedBuffer::new_uniform(context, display_uniform);
-        let display_bind_group_layout =
-            context
-                .device
-                .create_bind_group_layout(&BindGroupLayoutDescriptor {
-                    label: Some("Display Variables Bind Group Layout"),
-                    entries: &[display_buffer.as_layout_entry(0, ShaderStages::FRAGMENT)],
-                });
-        let display_bind_group = context.device.create_bind_group(&BindGroupDescriptor {
-            label: Some("Display Variables Bind Group"),
-            layout: &display_bind_group_layout,
-            entries: &[display_buffer.as_bind_group_entry(0)],
-        });
-
-        let shader = context
-            .device
-            .create_shader_module(include_wgsl!(".././res/fullscreen.wgsl"));
-        let layout = context
-            .device
-            .create_pipeline_layout(&PipelineLayoutDescriptor {
-                label: Some("Fullscreen Pipeline Layout"),
-                bind_group_layouts: &[Some(&display_bind_group_layout), Some(&camera.get_layout())],
-                immediate_size: 0,
-            });
-        let pipeline = context
-            .device
-            .create_render_pipeline(&RenderPipelineDescriptor {
-                label: Some("Fullscreen Pipeline"),
-                layout: Some(&layout),
-                vertex: VertexState {
-                    module: &shader,
-                    entry_point: Some("vs_main"),
-                    compilation_options: PipelineCompilationOptions::default(),
-                    buffers: &[],
-                },
-                fragment: Some(FragmentState {
-                    module: &shader,
-                    entry_point: Some("fs_main"),
-                    compilation_options: PipelineCompilationOptions::default(),
-                    targets: &[Some(ColorTargetState {
-                        format: config.format,
-                        blend: Some(BlendState::REPLACE),
-                        write_mask: ColorWrites::ALL,
-                    })],
-                }),
-                primitive: PrimitiveState {
-                    topology: PrimitiveTopology::TriangleList,
-                    strip_index_format: None,
-                    front_face: FrontFace::Ccw,
-                    cull_mode: None,
-                    unclipped_depth: false,
-                    polygon_mode: PolygonMode::Fill,
-                    conservative: false,
-                },
-                depth_stencil: None,
-                multisample: MultisampleState {
-                    count: 1,
-                    mask: !0,
-                    alpha_to_coverage_enabled: false,
-                },
-                multiview_mask: None,
-                cache: None,
-            });
+        let output = Self::create_output_texture(context, size.width, size.height);
 
         Ok(Self {
             surface,
             surface_config: config,
             is_surface_configured: false,
-            pipeline,
-            display_uniform,
-            display_buffer,
-            display_bind_group,
+            output,
         })
     }
 
     pub fn resize(&mut self, context: &RenderContext, width: NonZeroU32, height: NonZeroU32) {
-        let width = width.get() as f32;
-        let height = height.get() as f32;
+        let width = width.get();
+        let height = height.get();
 
-        self.surface_config.width = width as u32;
-        self.surface_config.height = height as u32;
+        self.surface_config.width = width;
+        self.surface_config.height = height;
         self.surface
             .configure(&context.device, &self.surface_config);
-        self.display_uniform.size_aspect = Vec4::new(width, height, width / height, 0.0);
-        self.display_buffer.update(context, self.display_uniform);
+
+        self.output = Self::create_output_texture(context, width, height);
         self.is_surface_configured = true;
     }
 
@@ -189,28 +92,37 @@ impl Display {
         })
     }
 
-    pub fn fullscreen_pass(&mut self, encoder: &mut CommandEncoder, frame: &Frame, camera: &Camera) {
-        let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
-            label: Some("Display Pass"),
-            color_attachments: &[Some(RenderPassColorAttachment {
-                view: &frame.surface_view,
-                resolve_target: None,
-                depth_slice: None,
-                ops: Operations {
-                    load: LoadOp::DontCare(unsafe { LoadOpDontCare::enabled() }),
-                    store: StoreOp::Store,
-                },
-            })],
-            depth_stencil_attachment: None,
-            occlusion_query_set: None,
-            timestamp_writes: None,
-            multiview_mask: None,
-        });
+    pub fn output(&self) -> &RenderTexture {
+        &self.output
+    }
 
-        render_pass.set_pipeline(&self.pipeline);
-        render_pass.set_bind_group(0, &self.display_bind_group, &[]);
-        render_pass.set_bind_group(1, camera.get_bind_group(), &[]);
-        render_pass.draw(0..3, 0..1);
+    pub fn surface_format(&self) -> TextureFormat {
+        self.surface_config.format
+    }
+
+    fn create_output_texture(context: &RenderContext, width: u32, height: u32) -> RenderTexture {
+        let output = context.device.create_texture(&TextureDescriptor {
+            label: Some("Output Texture"),
+            size: Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: TextureDimension::D2,
+            format: TextureFormat::Rgba16Float,
+            usage: TextureUsages::STORAGE_BINDING | TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        });
+        let output_view = output.create_view(&TextureViewDescriptor::default());
+
+        RenderTexture {
+            output,
+            output_view,
+            width,
+            height,
+        }
     }
 }
 
