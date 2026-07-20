@@ -18,6 +18,11 @@ struct DisplayUniform {
     size_aspect: vec4<f32>
 };
 
+struct CameraUniform {
+    position: vec4<f32>,
+    rotation: mat4x4<f32>,
+};
+
 struct Ray {
     origin: vec3<f32>,
     direction: vec3<f32>,
@@ -25,6 +30,9 @@ struct Ray {
 
 @group(0) @binding(0)
 var<uniform> display: DisplayUniform;
+
+@group(1) @binding(0)
+var<uniform> camera: CameraUniform;
 
 @fragment
 fn fs_main(
@@ -35,12 +43,12 @@ fn fs_main(
     let aspect = display.size_aspect.z;
 
     const focal_len = 1;
-    const camera_pos: vec3<f32> = vec3<f32>(0);
+    let camera_pos: vec3<f32> = camera.position.xyz;
     let uv = in.uv;
     let centered = uv * 2.0 - 1.0;
-    let screen_point = vec3<f32>(centered.x * aspect, centered.y, -focal_len);
+    let direction = vec3<f32>(centered.x * aspect, centered.y, -focal_len);
 
-    var ray = Ray(camera_pos, screen_point - camera_pos);
+    var ray = Ray(camera_pos, direction);
 
     let t = ray_sphere_intersect(vec3(0, 0, -1), 0.5, ray);
     if (t > 0.0) {

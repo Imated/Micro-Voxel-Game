@@ -2,13 +2,13 @@ use crate::render_context::RenderContext;
 use bytemuck::{Pod, Zeroable, cast_slice};
 use std::any::type_name;
 use std::marker::PhantomData;
-use wgpu::BufferDescriptor;
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use wgpu::{
-    BindGroupEntry, BindGroupLayoutEntry, BindingType, Buffer, BufferAddress, BufferBindingType,
-    BufferUsages, ShaderSource, ShaderStages,
+    BindGroupEntry, BindGroupLayoutEntry, BindingType, Buffer, BufferBindingType, BufferUsages,
+    ShaderStages,
 };
 
+#[derive(Debug)]
 pub struct TypedBuffer<T: Pod + Zeroable> {
     inner: Buffer,
     buffer_type: BufferBindingType,
@@ -61,7 +61,9 @@ impl<T: Pod + Zeroable> TypedBuffer<T> {
     }
 
     pub fn update(&self, context: &RenderContext, data: T) {
-        context.queue.write_buffer(&self.inner, 0, cast_slice(&[data]));
+        context
+            .queue
+            .write_buffer(&self.inner, 0, cast_slice(&[data]));
     }
 
     fn create_buffer(context: &RenderContext, data: T, usage: BufferUsages) -> Buffer {

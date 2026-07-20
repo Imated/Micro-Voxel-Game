@@ -14,6 +14,7 @@ use winit::window::{Window, WindowAttributes, WindowId};
 
 mod app;
 pub mod buffer;
+pub mod camera;
 pub mod display;
 pub mod render_context;
 
@@ -25,6 +26,7 @@ pub enum AppRunner {
         app: App,
         frame_count: i64,
         window: Arc<Window>,
+        delta_time: f64,
     },
 }
 
@@ -44,6 +46,7 @@ impl ApplicationHandler for AppRunner {
             app: App::new(window.clone()),
             frame_count: 0,
             window,
+            delta_time: 0.0,
         };
     }
 
@@ -57,6 +60,7 @@ impl ApplicationHandler for AppRunner {
             app,
             frame_count,
             window,
+            delta_time,
         } = self
         else {
             return;
@@ -66,12 +70,14 @@ impl ApplicationHandler for AppRunner {
             WindowEvent::RedrawRequested => {
                 let prev = Instant::now();
 
-                app.render();
+                app.render(*delta_time);
 
+
+                *delta_time = prev.elapsed().as_secs_f64();
                 if *frame_count % 512 == 0 {
                     window.set_title(&format!(
                         "Micro Voxels - {:.1?} FPS",
-                        1.0 / prev.elapsed().as_secs_f32()
+                        1.0 / *delta_time
                     ));
                 }
 

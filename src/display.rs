@@ -1,21 +1,22 @@
 use crate::buffer::TypedBuffer;
 use crate::render_context::RenderContext;
 use bytemuck::{Pod, Zeroable};
-use glam::Vec4;
+use glam::{Mat4, Vec3, Vec4};
 use std::num::NonZeroU32;
 use std::sync::Arc;
 use wgpu::wgt::TextureViewDescriptor;
 use wgpu::{
-    include_wgsl, BindGroup, BindGroupDescriptor
-    , BindGroupLayoutDescriptor,
-    BlendState, ColorTargetState, ColorWrites, CommandEncoder, CurrentSurfaceTexture,
-    FragmentState, FrontFace, LoadOp, LoadOpDontCare, MultisampleState,
-    Operations, PipelineCompilationOptions, PipelineLayoutDescriptor, PolygonMode, PresentMode,
-    PrimitiveState, PrimitiveTopology, RenderPassColorAttachment, RenderPassDescriptor,
-    RenderPipeline, RenderPipelineDescriptor, ShaderStages, StoreOp, Surface,
-    SurfaceColorSpace, SurfaceConfiguration, SurfaceTexture, TextureUsages, TextureView, VertexState,
+    BindGroup, BindGroupDescriptor, BindGroupLayoutDescriptor, BlendState, ColorTargetState,
+    ColorWrites, CommandEncoder, CurrentSurfaceTexture, FragmentState, FrontFace, LoadOp,
+    LoadOpDontCare, MultisampleState, Operations, PipelineCompilationOptions,
+    PipelineLayoutDescriptor, PolygonMode, PresentMode, PrimitiveState, PrimitiveTopology,
+    RenderPassColorAttachment, RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor,
+    ShaderStages, StoreOp, Surface, SurfaceColorSpace, SurfaceConfiguration, SurfaceTexture,
+    TextureUsages, TextureView, VertexState, include_wgsl,
 };
+use winit::keyboard::KeyCode;
 use winit::window::Window;
+use crate::camera::{Camera, CameraUniform};
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, Default, Pod, Zeroable)]
@@ -35,7 +36,7 @@ pub struct Display {
 }
 
 impl Display {
-    pub fn new(context: &RenderContext, window: Arc<Window>) -> anyhow::Result<Self> {
+    pub fn new(context: &RenderContext, window: Arc<Window>, camera: &Camera) -> anyhow::Result<Self> {
         let size = window.inner_size();
         let surface = context.instance.create_surface(window.clone())?;
 
@@ -67,8 +68,9 @@ impl Display {
                 0.0,
             ),
         };
-        let display_buffer = TypedBuffer::new_uniform(context, display_uniform);
 
+
+        let display_buffer = TypedBuffer::new_uniform(context, display_uniform);
         let display_bind_group_layout =
             context
                 .device
@@ -76,7 +78,6 @@ impl Display {
                     label: Some("Display Variables Bind Group Layout"),
                     entries: &[display_buffer.as_layout_entry(0, ShaderStages::FRAGMENT)],
                 });
-
         let display_bind_group = context.device.create_bind_group(&BindGroupDescriptor {
             label: Some("Display Variables Bind Group"),
             layout: &display_bind_group_layout,
@@ -90,7 +91,7 @@ impl Display {
             .device
             .create_pipeline_layout(&PipelineLayoutDescriptor {
                 label: Some("Fullscreen Pipeline Layout"),
-                bind_group_layouts: &[Some(&display_bind_group_layout)],
+                bind_group_layouts: &[Some(&display_bind_group_layout), Some(&camera.get_layout())],
                 immediate_size: 0,
             });
         let pipeline = context
@@ -188,7 +189,7 @@ impl Display {
         })
     }
 
-    pub fn fullscreen_pass(&self, encoder: &mut CommandEncoder, frame: &Frame) {
+    pub fn fullscreen_pass(&mut self, encoder: &mut CommandEncoder, frame: &Frame, camera: &Camera) {
         let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
             label: Some("Display Pass"),
             color_attachments: &[Some(RenderPassColorAttachment {
@@ -208,6 +209,7 @@ impl Display {
 
         render_pass.set_pipeline(&self.pipeline);
         render_pass.set_bind_group(0, &self.display_bind_group, &[]);
+        render_pass.set_bind_group(1, camera.get_bind_group(), &[]);
         render_pass.draw(0..3, 0..1);
     }
 }

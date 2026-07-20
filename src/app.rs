@@ -2,29 +2,34 @@ use crate::display::Display;
 use crate::render_context::RenderContext;
 use std::num::NonZeroU32;
 use std::sync::Arc;
+use glam::Vec3;
 use wgpu::CommandEncoderDescriptor;
 use winit::keyboard::KeyCode;
 use winit::window::{Fullscreen, Window};
+use crate::camera::Camera;
 
 pub struct App {
     window: Arc<Window>,
     context: RenderContext,
     display: Display,
+    camera: Camera
 }
 
 impl App {
     pub fn new(window: Arc<Window>) -> Self {
         let context = pollster::block_on(RenderContext::new()).expect("Failed to create renderer.");
-        let display = Display::new(&context, window.clone()).expect("Failed to create display.");
+        let camera = Camera::new(&context, Vec3::splat(0.0), 0.0, 0.0);
+        let display = Display::new(&context, window.clone(), &camera).expect("Failed to create display.");
 
         Self {
             window,
             context,
             display,
+            camera,
         }
     }
 
-    pub fn render(&self) {
+    pub fn render(&mut self, delta_time: f64) {
         // acquire frame and skip if smth happened and hope it works next frame
         let Some(frame) = self.display.acquire_frame(&self.context) else {
             return;
@@ -35,7 +40,8 @@ impl App {
             .device
             .create_command_encoder(&CommandEncoderDescriptor::default());
 
-        self.display.fullscreen_pass(&mut encoder, &frame);
+        self.camera.update(&self.context, delta_time);
+        self.display.fullscreen_pass(&mut encoder, &frame, &self.camera);
 
         self.context.queue.submit([encoder.finish()]);
         self.window.pre_present_notify();
@@ -46,7 +52,7 @@ impl App {
         self.display.resize(&self.context, width, height);
     }
 
-    pub fn on_key_event(&self, key_code: KeyCode, is_pressed: bool) {
+    pub fn on_key_event(&mut self, key_code: KeyCode, is_pressed: bool) {
         match (key_code, is_pressed) {
             (KeyCode::F11, true) => {
                 if self.window.fullscreen().is_some() {
@@ -56,7 +62,9 @@ impl App {
                         .set_fullscreen(Some(Fullscreen::Borderless(None)));
                 }
             }
-            _ => {}
+            _ => {
+                self.camera.process_key_event(key_code, is_pressed);
+            }
         }
     }
 }
