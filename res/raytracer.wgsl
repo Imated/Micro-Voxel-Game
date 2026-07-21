@@ -38,9 +38,9 @@ fn main(@builtin(global_invocation_id) id : vec3<u32>) {
     const fov = 67.0;
     const focal_length = 1 / tan(radians(fov) / 2);
     let camera_pos: vec3<f32> = camera.position.xyz;
-    let direction = vec3<f32>(uv_centered.x * aspect, uv_centered.y, -focal_length);
+    let direction = vec3<f32>(uv_centered.x * aspect, -uv_centered.y, -focal_length);
 
-    var ray = Ray(camera_pos, direction);
+    var ray = Ray(camera_pos, mat3x3<f32>(camera.rotation[0].xyz, camera.rotation[1].xyz, camera.rotation[2].xyz) * direction);
     let color = ray_color(ray);
     textureStore(output, vec2<i32>(id.xy), color);
 }

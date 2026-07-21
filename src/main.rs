@@ -1,16 +1,17 @@
 use crate::AppRunner::Running;
 use crate::app::App;
+use glam::{DVec2, Vec2};
 use std::num::NonZeroU32;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tracing::{Level, info};
+use tracing::{Level, debug, info};
 use tracing_subscriber::EnvFilter;
 use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalSize;
-use winit::event::{KeyEvent, WindowEvent};
+use winit::event::{DeviceEvent, DeviceId, KeyEvent, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{KeyCode, PhysicalKey};
-use winit::window::{Window, WindowAttributes, WindowId};
+use winit::window::{CursorGrabMode, Window, WindowAttributes, WindowId};
 
 mod app;
 mod blit;
@@ -55,7 +56,7 @@ impl ApplicationHandler for AppRunner {
     fn window_event(
         &mut self,
         event_loop: &ActiveEventLoop,
-        window_id: WindowId,
+        _window_id: WindowId,
         event: WindowEvent,
     ) {
         let Running {
@@ -63,6 +64,7 @@ impl ApplicationHandler for AppRunner {
             frame_count,
             window,
             delta_time,
+            ..
         } = self
         else {
             return;
@@ -76,7 +78,10 @@ impl ApplicationHandler for AppRunner {
 
                 *delta_time = prev.elapsed();
                 if *frame_count % 512 == 0 {
-                    window.set_title(&format!("Micro Voxels - {:.1?} FPS", 1.0 / delta_time.as_secs_f64()));
+                    window.set_title(&format!(
+                        "Micro Voxels - {:.1?} FPS",
+                        1.0 / delta_time.as_secs_f64()
+                    ));
                 }
 
                 *frame_count += 1;
@@ -96,19 +101,48 @@ impl ApplicationHandler for AppRunner {
                 event:
                     KeyEvent {
                         physical_key: PhysicalKey::Code(code),
-                        state: key_state,
+                        state,
                         repeat: false,
                         ..
                     },
                 ..
-            } => match (code, key_state.is_pressed()) {
+            } => match (code, state.is_pressed()) {
                 (KeyCode::Escape, true) => event_loop.exit(),
                 (code, is_pressed) => {
                     app.on_key_event(code, is_pressed);
                 }
             },
+            WindowEvent::Focused(focused) => {
+                if !focused {
+                    return;
+                }
+
+                window
+                    .set_cursor_grab(CursorGrabMode::Locked)
+                    .or_else(|_| window.set_cursor_grab(CursorGrabMode::Confined))
+                    .expect("Failed to grab cursor");
+                window.set_cursor_visible(false);
+            }
             WindowEvent::CloseRequested => {
                 event_loop.exit();
+            }
+            _ => {}
+        }
+    }
+
+    fn device_event(
+        &mut self,
+        _event_loop: &ActiveEventLoop,
+        _device_id: DeviceId,
+        event: DeviceEvent,
+    ) {
+        let Running { app, .. } = self else {
+            return;
+        };
+
+        match event {
+            DeviceEvent::MouseMotion { delta } => {
+                app.on_mouse_moved(Vec2::new(delta.0 as f32, delta.1 as f32));
             }
             _ => {}
         }

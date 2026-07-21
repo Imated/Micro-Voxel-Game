@@ -1,9 +1,10 @@
-use std::time::Duration;
 use crate::buffer::TypedBuffer;
 use crate::render_context::RenderContext;
 use bytemuck::{Pod, Zeroable};
 use glam::dcamera::lh::view::look_to_mat4;
-use glam::{DMat4, DVec2, DVec3, IVec2, Mat4, Vec2, Vec3, Vec4};
+use glam::{DMat4, DVec2, DVec3, Mat4, Vec2, Vec3, Vec4};
+use std::f32::consts::FRAC_PI_2;
+use std::time::Duration;
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupLayout, BindGroupLayoutDescriptor, ShaderStages,
 };
@@ -34,6 +35,9 @@ pub struct Camera {
     move_back: bool,
     move_left: bool,
     move_right: bool,
+    move_up: bool,
+    move_down: bool,
+    mouse_delta: Vec2,
 
     buffer: TypedBuffer<CameraUniform>,
     layout: BindGroupLayout,
@@ -74,21 +78,17 @@ impl Camera {
             move_back: false,
             move_left: false,
             move_right: false,
+            move_up: false,
+            move_down: false,
+            mouse_delta: Vec2::default(),
             buffer,
             layout,
             bind_group,
         }
     }
 
-    pub fn calc_matrix(&self) -> DMat4 {
-        let (sin_pitch, cos_pitch) = self.pitch.sin_cos();
-        let (sin_yaw, cos_yaw) = self.yaw.sin_cos();
-
-        look_to_mat4(
-            self.position.into(),
-            DVec3::new((cos_pitch * cos_yaw) as f64, sin_pitch.into(), (cos_pitch * sin_yaw) as f64).normalize(),
-            DVec3::Y,
-        )
+    pub fn calc_matrix(&self) -> Mat4 {
+        Mat4::from_rotation_y(self.yaw) * Mat4::from_rotation_x(self.pitch)
     }
 
     pub fn process_key_event(&mut self, key_code: KeyCode, is_pressed: bool) {
@@ -97,12 +97,19 @@ impl Camera {
             KeyCode::KeyS | KeyCode::ArrowDown => self.move_back = is_pressed,
             KeyCode::KeyD | KeyCode::ArrowRight => self.move_right = is_pressed,
             KeyCode::KeyA | KeyCode::ArrowLeft => self.move_left = is_pressed,
+            KeyCode::Space => self.move_up = is_pressed,
+            KeyCode::ShiftLeft => self.move_down = is_pressed,
             _ => {}
         }
     }
 
+    pub fn process_mouse_movement(&mut self, delta: Vec2) {
+        self.mouse_delta += delta;
+    }
+
     pub fn update(&mut self, context: &RenderContext, delta_time: Duration) {
         const SPEED: f32 = 1.0;
+        const SENSITIVITY: f32 = 0.001;
 
         let direction = Vec2::new(
             (self.move_right as i8 - self.move_left as i8) as f32,
@@ -110,17 +117,32 @@ impl Camera {
         )
         .normalize_or_zero();
 
-        let (yaw_sin, yaw_cos) = self.yaw.sin_cos();
-        let forward = Vec3::new(yaw_sin, 0.0, yaw_cos).normalize();
-        let right = Vec3::new(-yaw_cos, 0.0, -yaw_sin).normalize();
+        let rotation = self.calc_matrix();
+        let forward = -rotation.z_axis.truncate().with_y(0.0).normalize_or_zero();
+        let right = rotation.x_axis.truncate().with_y(0.0).normalize_or_zero();
         self.position += forward * direction.y * SPEED * delta_time.as_secs_f32();
         self.position += right * direction.x * SPEED * delta_time.as_secs_f32();
+
+        self.position.y +=
+            (self.move_up as i8 - self.move_down as i8) as f32 * SPEED * delta_time.as_secs_f32();
+
+        self.yaw -= self.mouse_delta.x * SENSITIVITY;
+        self.pitch -= self.mouse_delta.y * SENSITIVITY;
+
+        self.mouse_delta = Vec2::ZERO;
+
+        // - 0.001 so when u look all the way down or all the way up it doesnt invert forward vector
+        if self.pitch < -(FRAC_PI_2 - 0.001) {
+            self.pitch = -(FRAC_PI_2 - 0.001);
+        } else if self.pitch > FRAC_PI_2 - 0.001 {
+            self.pitch = FRAC_PI_2 - 0.001;
+        }
 
         self.buffer.update(
             context,
             CameraUniform {
                 position: self.position.extend(0.0),
-                rotation: Mat4::IDENTITY,
+                rotation: self.calc_matrix(),
             },
         );
     }

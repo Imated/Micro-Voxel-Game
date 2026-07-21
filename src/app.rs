@@ -3,11 +3,10 @@ use crate::camera::Camera;
 use crate::display::Display;
 use crate::render_context::RenderContext;
 use crate::renderer::{RenderTexture, Renderer};
-use glam::Vec3;
+use glam::{DVec2, Vec2, Vec3};
 use std::num::NonZeroU32;
 use std::sync::Arc;
 use std::time::Duration;
-use wgpu::CommandEncoderDescriptor;
 use winit::keyboard::KeyCode;
 use winit::window::{Fullscreen, Window};
 
@@ -83,5 +82,9 @@ impl App {
                 self.camera.process_key_event(key_code, is_pressed);
             }
         }
+    }
+
+    pub fn on_mouse_moved(&mut self, delta: Vec2) {
+        self.camera.process_mouse_movement(delta);
     }
 }
