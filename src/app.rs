@@ -49,8 +49,8 @@ impl App {
         self.renderer.raytrace_pass(&mut frame, &self.output);
         self.blitter.blit(&mut frame);
 
-        self.context.queue.submit([frame.encoder.finish()]);
         self.window.pre_present_notify();
+        self.context.queue.submit([frame.encoder.finish()]);
         self.context.queue.present(frame.surface_texture);
     }
 

@@ -1,12 +1,16 @@
-use crate::display::{Display, Frame};
+use crate::display::Frame;
 use crate::render_context::RenderContext;
-use wgpu::{BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource, BindingType, CommandEncoder, ComputePassDescriptor, ComputePipeline, ComputePipelineDescriptor, PipelineCompilationOptions, PipelineLayoutDescriptor, ShaderStages, StorageTextureAccess, Texture, TextureFormat, TextureView, TextureViewDimension, include_wgsl, TextureDescriptor, Extent3d, TextureDimension, TextureUsages, TextureViewDescriptor};
+use wgpu::{include_wgsl, BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource, BindingType, ComputePassDescriptor, ComputePipeline, ComputePipelineDescriptor, Extent3d, PipelineCompilationOptions, PipelineLayoutDescriptor, ShaderStages, StorageTextureAccess, Texture, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages, TextureView, TextureViewDescriptor, TextureViewDimension};
 
 pub struct RenderTexture {
     pub output: Texture,
     pub output_view: TextureView,
     pub width: u32,
     pub height: u32,
+}
+
+impl RenderTexture {
+    pub const FORMAT: TextureFormat = TextureFormat::Rgba16Float;
 }
 
 impl RenderTexture {
@@ -21,7 +25,7 @@ impl RenderTexture {
             mip_level_count: 1,
             sample_count: 1,
             dimension: TextureDimension::D2,
-            format: TextureFormat::Rgba16Float,
+            format: RenderTexture::FORMAT,
             usage: TextureUsages::STORAGE_BINDING | TextureUsages::TEXTURE_BINDING,
             view_formats: &[],
         });
@@ -54,7 +58,7 @@ impl Renderer {
                         visibility: ShaderStages::COMPUTE,
                         ty: BindingType::StorageTexture {
                             access: StorageTextureAccess::WriteOnly,
-                            format: TextureFormat::Rgba16Float,
+                            format: RenderTexture::FORMAT,
                             view_dimension: TextureViewDimension::D2,
                         },
                         count: None,

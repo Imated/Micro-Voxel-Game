@@ -1,7 +1,7 @@
-use crate::display::{Display, Frame};
+use crate::display::Frame;
 use crate::render_context::RenderContext;
-use wgpu::{include_wgsl, BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource, BindingType, BlendState, ColorTargetState, ColorWrites, CommandEncoder, FilterMode, FragmentState, FrontFace, LoadOp, LoadOpDontCare, MultisampleState, Operations, PipelineCompilationOptions, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, RenderPassColorAttachment, RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor, Sampler, SamplerBindingType, SamplerDescriptor, ShaderStages, StoreOp, TextureFormat, TextureSampleType, TextureView, TextureViewDimension, VertexState};
 use crate::renderer::RenderTexture;
+use wgpu::{include_wgsl, BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource, BindingType, BlendState, ColorTargetState, ColorWrites, FilterMode, FragmentState, FrontFace, LoadOp, LoadOpDontCare, MultisampleState, Operations, PipelineCompilationOptions, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, RenderPassColorAttachment, RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor, Sampler, SamplerBindingType, SamplerDescriptor, ShaderStages, StoreOp, TextureFormat, TextureSampleType, TextureView, TextureViewDimension, VertexState};
 
 pub struct Blitter {
     pipeline: RenderPipeline,
@@ -11,7 +11,7 @@ pub struct Blitter {
 }
 
 impl Blitter {
-    pub fn new(context: &RenderContext, dest: &RenderTexture, src_format: TextureFormat) -> Self {
+    pub fn new(context: &RenderContext, source: &RenderTexture, dest_format: TextureFormat) -> Self {
         let bind_group_layout =
             context
                 .device
@@ -44,7 +44,7 @@ impl Blitter {
             ..Default::default()
         });
 
-        let bind_group = Self::create_bind_group(context, &bind_group_layout, &sampler, &dest.output_view);
+        let bind_group = Self::create_bind_group(context, &bind_group_layout, &sampler, &source.output_view);
 
         let shader = context
             .device
@@ -72,7 +72,7 @@ impl Blitter {
                     entry_point: Some("fs_main"),
                     compilation_options: PipelineCompilationOptions::default(),
                     targets: &[Some(ColorTargetState {
-                        format: src_format,
+                        format: dest_format,
                         blend: Some(BlendState::REPLACE),
                         write_mask: ColorWrites::ALL,
                     })],
