@@ -1,7 +1,16 @@
 use crate::display::Frame;
 use crate::render_context::RenderContext;
 use crate::renderer::RenderTexture;
-use wgpu::{include_wgsl, BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource, BindingType, BlendState, ColorTargetState, ColorWrites, FilterMode, FragmentState, FrontFace, LoadOp, LoadOpDontCare, MultisampleState, Operations, PipelineCompilationOptions, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, RenderPassColorAttachment, RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor, Sampler, SamplerBindingType, SamplerDescriptor, ShaderStages, StoreOp, TextureFormat, TextureSampleType, TextureView, TextureViewDimension, VertexState};
+use wgpu::{
+    BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
+    BindGroupLayoutEntry, BindingResource, BindingType, BlendState, ColorTargetState, ColorWrites,
+    FilterMode, FragmentState, FrontFace, LoadOp, LoadOpDontCare, MultisampleState, Operations,
+    PipelineCompilationOptions, PipelineLayoutDescriptor, PolygonMode, PrimitiveState,
+    PrimitiveTopology, RenderPassColorAttachment, RenderPassDescriptor, RenderPipeline,
+    RenderPipelineDescriptor, Sampler, SamplerBindingType, SamplerDescriptor, ShaderStages,
+    StoreOp, TextureFormat, TextureSampleType, TextureView, TextureViewDimension, VertexState,
+    include_wgsl,
+};
 
 pub struct Blitter {
     pipeline: RenderPipeline,
@@ -11,7 +20,11 @@ pub struct Blitter {
 }
 
 impl Blitter {
-    pub fn new(context: &RenderContext, source: &RenderTexture, dest_format: TextureFormat) -> Self {
+    pub fn new(
+        context: &RenderContext,
+        source: &RenderTexture,
+        dest_format: TextureFormat,
+    ) -> Self {
         let bind_group_layout =
             context
                 .device
@@ -44,7 +57,8 @@ impl Blitter {
             ..Default::default()
         });
 
-        let bind_group = Self::create_bind_group(context, &bind_group_layout, &sampler, &source.output_view);
+        let bind_group =
+            Self::create_bind_group(context, &bind_group_layout, &sampler, &source.output_view);
 
         let shader = context
             .device

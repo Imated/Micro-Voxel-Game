@@ -6,6 +6,7 @@ use crate::renderer::{RenderTexture, Renderer};
 use glam::Vec3;
 use std::num::NonZeroU32;
 use std::sync::Arc;
+use std::time::Duration;
 use wgpu::CommandEncoderDescriptor;
 use winit::keyboard::KeyCode;
 use winit::window::{Fullscreen, Window};
@@ -23,10 +24,14 @@ pub struct App {
 impl App {
     pub fn new(window: Arc<Window>) -> Self {
         let context = pollster::block_on(RenderContext::new()).expect("Failed to create renderer.");
-        let camera = Camera::new(&context, Vec3::splat(0.0), 0.0, 0.0);
         let display = Display::new(&context, window.clone()).expect("Failed to create display.");
-        let output = RenderTexture::new(&context, window.inner_size().width, window.inner_size().height);
-        let renderer = Renderer::new(&context, &output);
+        let output = RenderTexture::new(
+            &context,
+            window.inner_size().width,
+            window.inner_size().height,
+        );
+        let camera = Camera::new(&context, Vec3::splat(0.0), 0.0, 0.0);
+        let renderer = Renderer::new(&context, &output, &camera);
         let blitter = Blitter::new(&context, &output, display.surface_format());
 
         Self {
@@ -40,13 +45,15 @@ impl App {
         }
     }
 
-    pub fn render(&mut self, delta_time: f64) {
+    pub fn render(&mut self, delta_time: Duration) {
         // acquire frame and skip if smth happened and hope it works next frame
         let Some(mut frame) = self.display.acquire_frame(&self.context) else {
             return;
         };
 
-        self.renderer.raytrace_pass(&mut frame, &self.output);
+        self.camera.update(&self.context, delta_time);
+        self.renderer
+            .raytrace_pass(&mut frame, &self.output, &self.camera);
         self.blitter.blit(&mut frame);
 
         self.window.pre_present_notify();
@@ -57,7 +64,8 @@ impl App {
     pub fn on_resize(&mut self, width: NonZeroU32, height: NonZeroU32) {
         self.output = RenderTexture::new(&self.context, width.get(), height.get());
         self.display.resize(&self.context, width, height);
-        self.renderer.resize(&self.context, &self.output.output_view);
+        self.renderer
+            .resize(&self.context, &self.output.output_view);
         self.blitter.resize(&self.context, &self.output.output_view);
     }
 

@@ -1,8 +1,9 @@
+use std::time::Duration;
 use crate::buffer::TypedBuffer;
 use crate::render_context::RenderContext;
 use bytemuck::{Pod, Zeroable};
 use glam::dcamera::lh::view::look_to_mat4;
-use glam::{DMat4, DVec3, IVec2, Mat4, Vec2, Vec3, Vec4};
+use glam::{DMat4, DVec2, DVec3, IVec2, Mat4, Vec2, Vec3, Vec4};
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupLayout, BindGroupLayoutDescriptor, ShaderStages,
 };
@@ -25,20 +26,22 @@ pub struct CameraUniform {
 
 #[derive(Debug)]
 pub struct Camera {
-    pub position: DVec3,
-    yaw: f64,
-    pitch: f64,
+    pub position: Vec3,
+    yaw: f32,
+    pitch: f32,
 
-    direction: IVec2,
+    move_forward: bool,
+    move_back: bool,
+    move_left: bool,
+    move_right: bool,
 
-    uniform: CameraUniform,
     buffer: TypedBuffer<CameraUniform>,
     layout: BindGroupLayout,
     bind_group: BindGroup,
 }
 
 impl Camera {
-    pub fn new<V: Into<DVec3>, Y: Into<f64>, P: Into<f64>>(
+    pub fn new<V: Into<Vec3>, Y: Into<f32>, P: Into<f32>>(
         context: &RenderContext,
         position: V,
         yaw: Y,
@@ -47,7 +50,7 @@ impl Camera {
         let position = position.into();
 
         let uniform = CameraUniform {
-            position: position.extend(0.0).as_vec4(),
+            position: position.extend(0.0),
             rotation: Mat4::IDENTITY,
         };
         let buffer = TypedBuffer::new_uniform(context, uniform);
@@ -55,7 +58,7 @@ impl Camera {
             .device
             .create_bind_group_layout(&BindGroupLayoutDescriptor {
                 label: Some("Camera Bind Group Layout"),
-                entries: &[buffer.as_layout_entry(0, ShaderStages::FRAGMENT)],
+                entries: &[buffer.as_layout_entry(0, ShaderStages::COMPUTE)],
             });
         let bind_group = context.device.create_bind_group(&BindGroupDescriptor {
             label: Some("Camera Bind Group"),
@@ -67,8 +70,10 @@ impl Camera {
             position,
             yaw: yaw.into(),
             pitch: pitch.into(),
-            direction: IVec2::splat(0),
-            uniform,
+            move_forward: false,
+            move_back: false,
+            move_left: false,
+            move_right: false,
             buffer,
             layout,
             bind_group,
@@ -81,44 +86,43 @@ impl Camera {
 
         look_to_mat4(
             self.position.into(),
-            DVec3::new(cos_pitch * cos_yaw, sin_pitch.into(), cos_pitch * sin_yaw).normalize(),
+            DVec3::new((cos_pitch * cos_yaw) as f64, sin_pitch.into(), (cos_pitch * sin_yaw) as f64).normalize(),
             DVec3::Y,
         )
     }
 
     pub fn process_key_event(&mut self, key_code: KeyCode, is_pressed: bool) {
-        let amount = if is_pressed { 1 } else { 0 };
         match key_code {
-            KeyCode::KeyW | KeyCode::ArrowUp => {
-                self.direction.y = amount;
-            }
-            KeyCode::KeyS | KeyCode::ArrowDown => {
-                self.direction.y = -amount;
-            }
-            KeyCode::KeyD | KeyCode::ArrowRight => {
-                self.direction.x = amount;
-            }
-            KeyCode::KeyA | KeyCode::ArrowLeft => {
-                self.direction.x = -amount;
-            }
+            KeyCode::KeyW | KeyCode::ArrowUp => self.move_forward = is_pressed,
+            KeyCode::KeyS | KeyCode::ArrowDown => self.move_back = is_pressed,
+            KeyCode::KeyD | KeyCode::ArrowRight => self.move_right = is_pressed,
+            KeyCode::KeyA | KeyCode::ArrowLeft => self.move_left = is_pressed,
             _ => {}
         }
     }
 
-    pub fn update(&mut self, context: &RenderContext, delta_time: f64) {
-        const SPEED: f64 = 1.0;
+    pub fn update(&mut self, context: &RenderContext, delta_time: Duration) {
+        const SPEED: f32 = 1.0;
+
+        let direction = Vec2::new(
+            (self.move_right as i8 - self.move_left as i8) as f32,
+            (self.move_forward as i8 - self.move_back as i8) as f32,
+        )
+        .normalize_or_zero();
 
         let (yaw_sin, yaw_cos) = self.yaw.sin_cos();
-        let forward = DVec3::new(yaw_sin, 0.0, -yaw_cos).normalize();
-        let right = DVec3::new(-yaw_cos, 0.0, -yaw_sin).normalize();
-        self.position += forward * self.direction.y as f64 * SPEED * delta_time;
-        self.position += right * self.direction.x as f64 * SPEED * delta_time;
+        let forward = Vec3::new(yaw_sin, 0.0, yaw_cos).normalize();
+        let right = Vec3::new(-yaw_cos, 0.0, -yaw_sin).normalize();
+        self.position += forward * direction.y * SPEED * delta_time.as_secs_f32();
+        self.position += right * direction.x * SPEED * delta_time.as_secs_f32();
 
-        self.uniform = CameraUniform {
-            position: self.position.extend(0.0).as_vec4(),
-            rotation: Mat4::IDENTITY,
-        };
-        self.buffer.update(context, self.uniform);
+        self.buffer.update(
+            context,
+            CameraUniform {
+                position: self.position.extend(0.0),
+                rotation: Mat4::IDENTITY,
+            },
+        );
     }
 
     pub fn get_layout(&self) -> BindGroupLayout {

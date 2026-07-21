@@ -1,8 +1,12 @@
 use crate::render_context::RenderContext;
 use std::num::NonZeroU32;
 use std::sync::Arc;
-use wgpu::{CommandEncoder, CurrentSurfaceTexture, PresentMode, Surface, SurfaceColorSpace, SurfaceConfiguration, SurfaceTexture, TextureFormat, TextureUsages, TextureView, TextureViewDescriptor};
 use wgpu::wgt::CommandEncoderDescriptor;
+use wgpu::{
+    CommandEncoder, CurrentSurfaceTexture, PresentMode, Surface, SurfaceColorSpace,
+    SurfaceConfiguration, SurfaceTexture, TextureFormat, TextureUsages, TextureView,
+    TextureViewDescriptor,
+};
 use winit::window::Window;
 
 pub struct Display {
@@ -83,7 +87,9 @@ impl Display {
         Some(Frame {
             surface_texture: output,
             surface_view: view,
-            encoder: context.device.create_command_encoder(&CommandEncoderDescriptor::default()),
+            encoder: context
+                .device
+                .create_command_encoder(&CommandEncoderDescriptor::default()),
         })
     }
 

@@ -1,6 +1,14 @@
+use crate::camera::Camera;
 use crate::display::Frame;
 use crate::render_context::RenderContext;
-use wgpu::{include_wgsl, BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource, BindingType, ComputePassDescriptor, ComputePipeline, ComputePipelineDescriptor, Extent3d, PipelineCompilationOptions, PipelineLayoutDescriptor, ShaderStages, StorageTextureAccess, Texture, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages, TextureView, TextureViewDescriptor, TextureViewDimension};
+use wgpu::{
+    BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
+    BindGroupLayoutEntry, BindingResource, BindingType, ComputePassDescriptor, ComputePipeline,
+    ComputePipelineDescriptor, Extent3d, PipelineCompilationOptions, PipelineLayoutDescriptor,
+    ShaderStages, StorageTextureAccess, Texture, TextureDescriptor, TextureDimension,
+    TextureFormat, TextureUsages, TextureView, TextureViewDescriptor, TextureViewDimension,
+    include_wgsl,
+};
 
 pub struct RenderTexture {
     pub output: Texture,
@@ -47,7 +55,7 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    pub fn new(context: &RenderContext, output: &RenderTexture) -> Self {
+    pub fn new(context: &RenderContext, output: &RenderTexture, camera: &Camera) -> Self {
         let bind_group_layout =
             context
                 .device
@@ -65,8 +73,7 @@ impl Renderer {
                     }],
                 });
 
-        let bind_group =
-            Self::create_bind_group(context, &bind_group_layout, &output.output_view);
+        let bind_group = Self::create_bind_group(context, &bind_group_layout, &output.output_view);
 
         let shader = context
             .device
@@ -75,7 +82,7 @@ impl Renderer {
             .device
             .create_pipeline_layout(&PipelineLayoutDescriptor {
                 label: Some("Raytracing Pipeline Layout"),
-                bind_group_layouts: &[Some(&bind_group_layout)],
+                bind_group_layouts: &[Some(&bind_group_layout), Some(&camera.get_layout())],
                 immediate_size: 0,
             });
 
@@ -101,7 +108,7 @@ impl Renderer {
         self.bind_group = Self::create_bind_group(context, &self.bind_group_layout, output_view);
     }
 
-    pub fn raytrace_pass(&self, frame: &mut Frame, output: &RenderTexture) {
+    pub fn raytrace_pass(&self, frame: &mut Frame, output: &RenderTexture, camera: &Camera) {
         let mut compute_pass = frame.encoder.begin_compute_pass(&ComputePassDescriptor {
             label: Some("Raytracer Compute Pass"),
             timestamp_writes: None,
@@ -109,11 +116,8 @@ impl Renderer {
 
         compute_pass.set_pipeline(&self.pipeline);
         compute_pass.set_bind_group(0, &self.bind_group, &[]);
-        compute_pass.dispatch_workgroups(
-            output.width.div_ceil(8),
-            output.height.div_ceil(8),
-            1,
-        )
+        compute_pass.set_bind_group(1, camera.get_bind_group(), &[]);
+        compute_pass.dispatch_workgroups(output.width.div_ceil(8), output.height.div_ceil(8), 1)
     }
 
     fn create_bind_group(

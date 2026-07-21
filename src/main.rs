@@ -2,7 +2,7 @@ use crate::AppRunner::Running;
 use crate::app::App;
 use std::num::NonZeroU32;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use tracing::{Level, info};
 use tracing_subscriber::EnvFilter;
 use winit::application::ApplicationHandler;
@@ -28,7 +28,7 @@ pub enum AppRunner {
         app: App,
         frame_count: i64,
         window: Arc<Window>,
-        delta_time: f64,
+        delta_time: Duration,
     },
 }
 
@@ -48,7 +48,7 @@ impl ApplicationHandler for AppRunner {
             app: App::new(window.clone()),
             frame_count: 0,
             window,
-            delta_time: 0.0,
+            delta_time: Duration::new(0, 0),
         };
     }
 
@@ -74,9 +74,9 @@ impl ApplicationHandler for AppRunner {
 
                 app.render(*delta_time);
 
-                *delta_time = prev.elapsed().as_secs_f64();
+                *delta_time = prev.elapsed();
                 if *frame_count % 512 == 0 {
-                    window.set_title(&format!("Micro Voxels - {:.1?} FPS", 1.0 / *delta_time));
+                    window.set_title(&format!("Micro Voxels - {:.1?} FPS", 1.0 / delta_time.as_secs_f64()));
                 }
 
                 *frame_count += 1;
@@ -97,6 +97,7 @@ impl ApplicationHandler for AppRunner {
                     KeyEvent {
                         physical_key: PhysicalKey::Code(code),
                         state: key_state,
+                        repeat: false,
                         ..
                     },
                 ..
