@@ -21,9 +21,10 @@ fn main(@builtin(global_invocation_id) id : vec3<u32>) {
 
     let aspect = f32(size.x) / f32(size.y);
 
-    const focal_len = 1;
+    const fov = 67.0;
+    const focal_length = 1 / tan(radians(fov) / 2);
     let camera_pos: vec3<f32> = vec3(0);
-    let direction = vec3<f32>(uv_centered.x * aspect, uv_centered.y, -focal_len);
+    let direction = vec3<f32>(uv_centered.x * aspect, uv_centered.y, -focal_length);
 
     var ray = Ray(camera_pos, direction);
     let color = ray_color(ray);
