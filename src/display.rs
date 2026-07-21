@@ -1,16 +1,14 @@
 use crate::render_context::RenderContext;
-use crate::renderer::RenderTexture;
 use std::num::NonZeroU32;
 use std::sync::Arc;
-use wgpu::{CurrentSurfaceTexture, Extent3d, PresentMode, Surface, SurfaceColorSpace, SurfaceConfiguration, SurfaceTexture, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages, TextureView, TextureViewDescriptor};
+use wgpu::{CommandEncoder, CurrentSurfaceTexture, PresentMode, Surface, SurfaceColorSpace, SurfaceConfiguration, SurfaceTexture, TextureFormat, TextureUsages, TextureView, TextureViewDescriptor};
+use wgpu::wgt::CommandEncoderDescriptor;
 use winit::window::Window;
 
 pub struct Display {
     surface: Surface<'static>,
     surface_config: SurfaceConfiguration,
     is_surface_configured: bool,
-
-    output: RenderTexture,
 }
 
 impl Display {
@@ -38,13 +36,10 @@ impl Display {
             color_space: SurfaceColorSpace::Auto,
         };
 
-        let output = Self::create_output_texture(context, size.width, size.height);
-
         Ok(Self {
             surface,
             surface_config: config,
             is_surface_configured: false,
-            output,
         })
     }
 
@@ -57,7 +52,6 @@ impl Display {
         self.surface
             .configure(&context.device, &self.surface_config);
 
-        self.output = Self::create_output_texture(context, width, height);
         self.is_surface_configured = true;
     }
 
@@ -89,44 +83,17 @@ impl Display {
         Some(Frame {
             surface_texture: output,
             surface_view: view,
+            encoder: context.device.create_command_encoder(&CommandEncoderDescriptor::default()),
         })
-    }
-
-    pub fn output(&self) -> &RenderTexture {
-        &self.output
     }
 
     pub fn surface_format(&self) -> TextureFormat {
         self.surface_config.format
-    }
-
-    fn create_output_texture(context: &RenderContext, width: u32, height: u32) -> RenderTexture {
-        let output = context.device.create_texture(&TextureDescriptor {
-            label: Some("Output Texture"),
-            size: Extent3d {
-                width,
-                height,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: TextureDimension::D2,
-            format: TextureFormat::Rgba16Float,
-            usage: TextureUsages::STORAGE_BINDING | TextureUsages::TEXTURE_BINDING,
-            view_formats: &[],
-        });
-        let output_view = output.create_view(&TextureViewDescriptor::default());
-
-        RenderTexture {
-            output,
-            output_view,
-            width,
-            height,
-        }
     }
 }
 
 pub struct Frame {
     pub surface_texture: SurfaceTexture,
     pub surface_view: TextureView,
+    pub encoder: CommandEncoder,
 }

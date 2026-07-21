@@ -1,18 +1,39 @@
-use crate::display::Display;
+use crate::display::{Display, Frame};
 use crate::render_context::RenderContext;
-use wgpu::{
-    BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
-    BindGroupLayoutEntry, BindingResource, BindingType, CommandEncoder, ComputePassDescriptor,
-    ComputePipeline, ComputePipelineDescriptor, PipelineCompilationOptions,
-    PipelineLayoutDescriptor, ShaderStages, StorageTextureAccess, Texture, TextureFormat,
-    TextureView, TextureViewDimension, include_wgsl,
-};
+use wgpu::{BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource, BindingType, CommandEncoder, ComputePassDescriptor, ComputePipeline, ComputePipelineDescriptor, PipelineCompilationOptions, PipelineLayoutDescriptor, ShaderStages, StorageTextureAccess, Texture, TextureFormat, TextureView, TextureViewDimension, include_wgsl, TextureDescriptor, Extent3d, TextureDimension, TextureUsages, TextureViewDescriptor};
 
 pub struct RenderTexture {
     pub output: Texture,
     pub output_view: TextureView,
     pub width: u32,
     pub height: u32,
+}
+
+impl RenderTexture {
+    pub fn new(context: &RenderContext, width: u32, height: u32) -> Self {
+        let output = context.device.create_texture(&TextureDescriptor {
+            label: Some("Output Texture"),
+            size: Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: TextureDimension::D2,
+            format: TextureFormat::Rgba16Float,
+            usage: TextureUsages::STORAGE_BINDING | TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        });
+        let output_view = output.create_view(&TextureViewDescriptor::default());
+
+        Self {
+            output,
+            output_view,
+            width,
+            height,
+        }
+    }
 }
 
 pub struct Renderer {
@@ -22,7 +43,7 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    pub fn new(context: &RenderContext, display: &Display) -> Self {
+    pub fn new(context: &RenderContext, output: &RenderTexture) -> Self {
         let bind_group_layout =
             context
                 .device
@@ -41,7 +62,7 @@ impl Renderer {
                 });
 
         let bind_group =
-            Self::create_bind_group(context, &bind_group_layout, &display.output().output_view);
+            Self::create_bind_group(context, &bind_group_layout, &output.output_view);
 
         let shader = context
             .device
@@ -76,8 +97,8 @@ impl Renderer {
         self.bind_group = Self::create_bind_group(context, &self.bind_group_layout, output_view);
     }
 
-    pub fn raytrace_pass(&self, encoder: &mut CommandEncoder, display: &Display) {
-        let mut compute_pass = encoder.begin_compute_pass(&ComputePassDescriptor {
+    pub fn raytrace_pass(&self, frame: &mut Frame, output: &RenderTexture) {
+        let mut compute_pass = frame.encoder.begin_compute_pass(&ComputePassDescriptor {
             label: Some("Raytracer Compute Pass"),
             timestamp_writes: None,
         });
@@ -85,8 +106,8 @@ impl Renderer {
         compute_pass.set_pipeline(&self.pipeline);
         compute_pass.set_bind_group(0, &self.bind_group, &[]);
         compute_pass.dispatch_workgroups(
-            display.output().width.div_ceil(8),
-            display.output().height.div_ceil(8),
+            output.width.div_ceil(8),
+            output.height.div_ceil(8),
             1,
         )
     }

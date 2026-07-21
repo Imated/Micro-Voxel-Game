@@ -2,7 +2,7 @@ use crate::blit::Blitter;
 use crate::camera::Camera;
 use crate::display::Display;
 use crate::render_context::RenderContext;
-use crate::renderer::Renderer;
+use crate::renderer::{RenderTexture, Renderer};
 use glam::Vec3;
 use std::num::NonZeroU32;
 use std::sync::Arc;
@@ -17,6 +17,7 @@ pub struct App {
     camera: Camera,
     renderer: Renderer,
     blitter: Blitter,
+    output: RenderTexture,
 }
 
 impl App {
@@ -24,8 +25,9 @@ impl App {
         let context = pollster::block_on(RenderContext::new()).expect("Failed to create renderer.");
         let camera = Camera::new(&context, Vec3::splat(0.0), 0.0, 0.0);
         let display = Display::new(&context, window.clone()).expect("Failed to create display.");
-        let renderer = Renderer::new(&context, &display);
-        let blitter = Blitter::new(&context, &display);
+        let output = RenderTexture::new(&context, window.inner_size().width, window.inner_size().height);
+        let renderer = Renderer::new(&context, &output);
+        let blitter = Blitter::new(&context, &output, display.surface_format());
 
         Self {
             window,
@@ -34,34 +36,29 @@ impl App {
             camera,
             renderer,
             blitter,
+            output,
         }
     }
 
     pub fn render(&mut self, delta_time: f64) {
         // acquire frame and skip if smth happened and hope it works next frame
-        let Some(frame) = self.display.acquire_frame(&self.context) else {
+        let Some(mut frame) = self.display.acquire_frame(&self.context) else {
             return;
         };
 
-        let mut encoder = self
-            .context
-            .device
-            .create_command_encoder(&CommandEncoderDescriptor::default());
+        self.renderer.raytrace_pass(&mut frame, &self.output);
+        self.blitter.blit(&mut frame);
 
-        self.renderer.raytrace_pass(&mut encoder, &self.display);
-        self.blitter.blit(&mut encoder, &frame);
-
-        self.context.queue.submit([encoder.finish()]);
+        self.context.queue.submit([frame.encoder.finish()]);
         self.window.pre_present_notify();
         self.context.queue.present(frame.surface_texture);
     }
 
     pub fn on_resize(&mut self, width: NonZeroU32, height: NonZeroU32) {
+        self.output = RenderTexture::new(&self.context, width.get(), height.get());
         self.display.resize(&self.context, width, height);
-
-        let output_view = &self.display.output().output_view;
-        self.renderer.resize(&self.context, output_view);
-        self.blitter.resize(&self.context, output_view);
+        self.renderer.resize(&self.context, &self.output.output_view);
+        self.blitter.resize(&self.context, &self.output.output_view);
     }
 
     pub fn on_key_event(&mut self, key_code: KeyCode, is_pressed: bool) {

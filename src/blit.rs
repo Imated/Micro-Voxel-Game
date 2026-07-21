@@ -1,15 +1,7 @@
 use crate::display::{Display, Frame};
 use crate::render_context::RenderContext;
-use wgpu::{
-    include_wgsl, BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout,
-    BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource, BindingType, BlendState, ColorTargetState,
-    ColorWrites, CommandEncoder, FilterMode, FragmentState, FrontFace, LoadOp, LoadOpDontCare,
-    MultisampleState, Operations, PipelineCompilationOptions, PipelineLayoutDescriptor, PolygonMode,
-    PrimitiveState, PrimitiveTopology, RenderPassColorAttachment, RenderPassDescriptor,
-    RenderPipeline, RenderPipelineDescriptor, Sampler, SamplerBindingType, SamplerDescriptor,
-    ShaderStages, StoreOp, TextureSampleType, TextureView, TextureViewDimension,
-    VertexState,
-};
+use wgpu::{include_wgsl, BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource, BindingType, BlendState, ColorTargetState, ColorWrites, CommandEncoder, FilterMode, FragmentState, FrontFace, LoadOp, LoadOpDontCare, MultisampleState, Operations, PipelineCompilationOptions, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, RenderPassColorAttachment, RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor, Sampler, SamplerBindingType, SamplerDescriptor, ShaderStages, StoreOp, TextureFormat, TextureSampleType, TextureView, TextureViewDimension, VertexState};
+use crate::renderer::RenderTexture;
 
 pub struct Blitter {
     pipeline: RenderPipeline,
@@ -19,7 +11,7 @@ pub struct Blitter {
 }
 
 impl Blitter {
-    pub fn new(context: &RenderContext, display: &Display) -> Self {
+    pub fn new(context: &RenderContext, dest: &RenderTexture, src_format: TextureFormat) -> Self {
         let bind_group_layout =
             context
                 .device
@@ -52,11 +44,11 @@ impl Blitter {
             ..Default::default()
         });
 
-        let bind_group = Self::create_bind_group(context, &bind_group_layout, &sampler, &display.output().output_view);
+        let bind_group = Self::create_bind_group(context, &bind_group_layout, &sampler, &dest.output_view);
 
         let shader = context
             .device
-            .create_shader_module(include_wgsl!(".././res/fullscreen.wgsl"));
+            .create_shader_module(include_wgsl!(".././res/blit.wgsl"));
         let layout = context
             .device
             .create_pipeline_layout(&PipelineLayoutDescriptor {
@@ -80,7 +72,7 @@ impl Blitter {
                     entry_point: Some("fs_main"),
                     compilation_options: PipelineCompilationOptions::default(),
                     targets: &[Some(ColorTargetState {
-                        format: display.surface_format(),
+                        format: src_format,
                         blend: Some(BlendState::REPLACE),
                         write_mask: ColorWrites::ALL,
                     })],
@@ -117,8 +109,8 @@ impl Blitter {
             Self::create_bind_group(context, &self.bind_group_layout, &self.sampler, source_view);
     }
 
-    pub fn blit(&self, encoder: &mut CommandEncoder, frame: &Frame) {
-        let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
+    pub fn blit(&self, frame: &mut Frame) {
+        let mut render_pass = frame.encoder.begin_render_pass(&RenderPassDescriptor {
             label: Some("Blit Pass"),
             color_attachments: &[Some(RenderPassColorAttachment {
                 view: &frame.surface_view,

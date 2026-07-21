@@ -71,6 +71,5 @@ fn fs_main(
     in: VertexOutput
 ) -> @location(0) vec4<f32> {
     let hdr = textureSample(render_texture, render_sampler, in.uv);
-    let mapped = hdr.rgb / (hdr.rgb + vec3<f32>(1.0));
-    return vec4<f32>(mapped, 1.0);
+    return vec4<f32>(hdr.xyz, 1.0);
 }
