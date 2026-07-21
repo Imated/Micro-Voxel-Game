@@ -14,11 +14,6 @@ fn vs_main(
     return out;
 }
 
-struct Ray {
-    origin: vec3<f32>,
-    direction: vec3<f32>,
-};
-
 @group(0) @binding(0)
 var render_texture: texture_2d<f32>;
 

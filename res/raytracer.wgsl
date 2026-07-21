@@ -3,6 +3,12 @@ struct Ray {
     direction: vec3<f32>,
 };
 
+struct HitInfo {
+    hit_point: vec3<f32>,
+    hit_normal: vec3<f32>,
+    t: f32,
+    front_face: bool,
+}
 
 @group(0) @binding(0)
 var output : texture_storage_2d<rgba16float, write>;
@@ -32,25 +38,34 @@ fn main(@builtin(global_invocation_id) id : vec3<u32>) {
 }
 
 fn ray_color(ray: Ray) -> vec4<f32> {
-    let t = ray_sphere_intersect(vec3(0, 0, -1), 0.5, ray);
-    if (t > 0.0) {
-        let N = normalize(ray.origin + ray.direction * t - vec3(0, 0, -1));
-        return 0.5 * vec4(N + 1, 0);
+    let hit_info = ray_sphere_intersect(vec3(0, 0, -1), 0.5, ray);
+    if (hit_info.t > 0.0) {
+        return 0.5 * vec4(hit_info.hit_normal + 1, 0);
     }
 
     let a = 0.5 * (normalize(ray.direction).y + 1.0);
     return mix(vec4<f32>(1), vec4<f32>(0.5, 0.7, 1.0, 1.0), a);
 }
 
-fn ray_sphere_intersect(center: vec3<f32>, radius: f32, ray: Ray) -> f32 {
+fn ray_sphere_intersect(center: vec3<f32>, radius: f32, ray: Ray) -> HitInfo {
     let oc = center - ray.origin;
     let a = length(ray.direction) * length(ray.direction);
     let h = dot(ray.direction, oc);
     let c = length(oc) * length(oc) - radius * radius;
     let discriminant = h * h - a * c;
-    if (discriminant < 0) {
-        return -1;
-    } else {
-        return (h - sqrt(discriminant)) / a;
+    var t = -1.0;
+    if (discriminant >= 0) {
+        t = (h - sqrt(discriminant)) / a;;
     }
+
+    // hit info stuff
+    let hit_point = ray.origin + ray.direction * t;
+    let outward_normal = (hit_point - center) / radius;
+    let front_face = dot(ray.direction, outward_normal) < 0;
+    var normal = outward_normal;
+    if (!front_face) {
+        normal = -outward_normal;
+    }
+
+    return HitInfo(hit_point, normal, t, front_face);
 }
