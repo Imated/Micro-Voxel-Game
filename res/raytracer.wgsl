@@ -50,7 +50,7 @@ fn main(@builtin(global_invocation_id) id : vec3<u32>) {
 fn ray_color(ray: Ray) -> vec4<f32> {
     //let hit_info = ray_sphere_intersect(vec3(0, 0, -1), 0.5, ray);
     let hit_info = ray_aabb(vec3(-0.1, -0.1, -0.1), vec3(0.1, 0.1, 0.1), ray);
-    let hit_info2 = ray_aabb(vec3(-0.2, -0.1, -0.1), vec3(0, 0.1, 0.1), ray);
+    let hit_info2 = ray_aabb(vec3(0.1, -0.1, -0.1), vec3(0.3, 0.1, 0.1), ray);
     let voxels = array<HitInfo, 2>(hit_info, hit_info2);
     var closest_hit: HitInfo = HitInfo(vec3<f32>(), vec3<f32>(), INFINITY, false);
 
