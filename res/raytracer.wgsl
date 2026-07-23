@@ -46,9 +46,35 @@ fn main(@builtin(global_invocation_id) id : vec3<u32>) {
 }
 
 fn ray_color(ray: Ray) -> vec4<f32> {
-    let hit_info = ray_sphere_intersect(vec3(0, 0, -1), 0.5, ray);
+    //let hit_info = ray_sphere_intersect(vec3(0, 0, -1), 0.5, ray);
+    let hit_info = ray_aabb(vec3(-0.1, -0.1, -0.1), vec3(0.1, 0.1, 0.1), ray);
+    let hit_info2 = ray_aabb(vec3(-0.2, -0.1, -0.1), vec3(0.1, 0.1, 0.1), ray);
+    var min_t = 0.0;
     if (hit_info.t > 0.0) {
-        return 0.5 * vec4(hit_info.hit_normal + 1, 0);
+        if (hit_info2.t > 0.0) {
+            if (hit_info2.t < hit_info.t)  {
+                return 0.5 * vec4(hit_info2.hit_normal + 2, 0);
+            }
+            else {
+                return 0.5 * vec4(hit_info.hit_normal + 1, 0);
+            }
+        }
+        else {
+            return 0.5 * vec4(hit_info.hit_normal + 1, 0);
+        }
+    }
+    else if (hit_info2.t > 0.0) {
+        return 0.5 * vec4(hit_info2.hit_normal + 2, 0);
+    }
+
+    if (hit_info2.t > 0.0) {
+        if (hit_info.t < min_t) {
+            min_t = hit_info.t;
+            return 0.5 * vec4(hit_info2.hit_normal + 2, 0);
+        }
+        else {
+            return 0.5 * vec4(hit_info.hit_normal + 1, 0);
+        }
     }
 
     let a = 0.5 * (normalize(ray.direction).y + 1.0);
@@ -69,6 +95,39 @@ fn ray_sphere_intersect(center: vec3<f32>, radius: f32, ray: Ray) -> HitInfo {
     // hit info stuff
     let hit_point = ray.origin + ray.direction * t;
     let outward_normal = (hit_point - center) / radius;
+    let front_face = dot(ray.direction, outward_normal) < 0;
+    var normal = outward_normal;
+    if (!front_face) {
+        normal = -outward_normal;
+    }
+
+    return HitInfo(hit_point, normal, t, front_face);
+}
+
+fn ray_aabb(box_min: vec3<f32>, box_max: vec3<f32>, ray: Ray) -> HitInfo {
+    let t_min = (box_min - ray.origin) / ray.direction;
+    let t_max = (box_max - ray.origin) / ray.direction;
+    let t1 = min(t_min, t_max);
+    let t2 = max(t_min, t_max);
+    let t_near = max(max(t1.x, t1.y), t1.z);
+    let t_far = min(min(t2.x, t2.y), t2.z);
+    var t = -1.0;
+    if (t_near <= t_far && t_far > 0.0) {
+        t = t_near;
+    }
+
+    // hit info stuff
+    let hit_point = ray.origin + ray.direction * t;
+    let center = (box_min + box_max) * 0.5;
+    let half_size = (box_max - box_min) * 0.5;
+    let local = (hit_point - center) / half_size;
+    let abs_local = abs(local);
+    var outward_normal = vec3<f32>(sign(local.x), 0.0, 0.0);
+    if (abs_local.y > abs_local.x && abs_local.y > abs_local.z) {
+        outward_normal = vec3<f32>(0.0, sign(local.y), 0.0);
+    } else if (abs_local.z > abs_local.x && abs_local.z > abs_local.y) {
+        outward_normal = vec3<f32>(0.0, 0.0, sign(local.z));
+    }
     let front_face = dot(ray.direction, outward_normal) < 0;
     var normal = outward_normal;
     if (!front_face) {
