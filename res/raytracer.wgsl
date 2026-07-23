@@ -48,33 +48,23 @@ fn main(@builtin(global_invocation_id) id : vec3<u32>) {
 fn ray_color(ray: Ray) -> vec4<f32> {
     //let hit_info = ray_sphere_intersect(vec3(0, 0, -1), 0.5, ray);
     let hit_info = ray_aabb(vec3(-0.1, -0.1, -0.1), vec3(0.1, 0.1, 0.1), ray);
-    let hit_info2 = ray_aabb(vec3(-0.2, -0.1, -0.1), vec3(0.1, 0.1, 0.1), ray);
-    var min_t = 0.0;
-    if (hit_info.t > 0.0) {
-        if (hit_info2.t > 0.0) {
-            if (hit_info2.t < hit_info.t)  {
-                return 0.5 * vec4(hit_info2.hit_normal + 2, 0);
-            }
-            else {
-                return 0.5 * vec4(hit_info.hit_normal + 1, 0);
-            }
+    let hit_info2 = ray_aabb(vec3(-0.2, -0.1, -0.1), vec3(0, 0.1, 0.1), ray);
+    let voxels = array<HitInfo, 2>(hit_info, hit_info2);
+    var closest_hit: HitInfo = hit_info;
+    var closest_t = 1e16;
+    var hit = false;
+
+    for (var i = 0u; i < 2; i++) {
+        let info = voxels[i];
+        if (info.t > 0 && info.t < closest_t) {
+            closest_hit = info;
+            closest_t = info.t;
+            hit = true;
         }
-        else {
-            return 0.5 * vec4(hit_info.hit_normal + 1, 0);
-        }
-    }
-    else if (hit_info2.t > 0.0) {
-        return 0.5 * vec4(hit_info2.hit_normal + 2, 0);
     }
 
-    if (hit_info2.t > 0.0) {
-        if (hit_info.t < min_t) {
-            min_t = hit_info.t;
-            return 0.5 * vec4(hit_info2.hit_normal + 2, 0);
-        }
-        else {
-            return 0.5 * vec4(hit_info.hit_normal + 1, 0);
-        }
+    if (hit) {
+        return 0.5 * vec4(closest_hit.hit_normal + 1, 0);
     }
 
     let a = 0.5 * (normalize(ray.direction).y + 1.0);
@@ -89,7 +79,7 @@ fn ray_sphere_intersect(center: vec3<f32>, radius: f32, ray: Ray) -> HitInfo {
     let discriminant = h * h - a * c;
     var t = -1.0;
     if (discriminant >= 0) {
-        t = (h - sqrt(discriminant)) / a;;
+        t = (h - sqrt(discriminant)) / a;
     }
 
     // hit info stuff
