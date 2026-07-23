@@ -15,6 +15,8 @@ struct Camera {
     rotation: mat4x4<f32>,
 }
 
+const INFINITY: f32 = 3.402823466e+38;
+
 @group(0) @binding(0)
 var output : texture_storage_2d<rgba16float, write>;
 
@@ -50,20 +52,16 @@ fn ray_color(ray: Ray) -> vec4<f32> {
     let hit_info = ray_aabb(vec3(-0.1, -0.1, -0.1), vec3(0.1, 0.1, 0.1), ray);
     let hit_info2 = ray_aabb(vec3(-0.2, -0.1, -0.1), vec3(0, 0.1, 0.1), ray);
     let voxels = array<HitInfo, 2>(hit_info, hit_info2);
-    var closest_hit: HitInfo = hit_info;
-    var closest_t = 1e16;
-    var hit = false;
+    var closest_hit: HitInfo = HitInfo(vec3<f32>(), vec3<f32>(), INFINITY, false);
 
     for (var i = 0u; i < 2; i++) {
         let info = voxels[i];
-        if (info.t > 0 && info.t < closest_t) {
+        if (info.t < closest_hit.t) {
             closest_hit = info;
-            closest_t = info.t;
-            hit = true;
         }
     }
 
-    if (hit) {
+    if (closest_hit.t != INFINITY) {
         return 0.5 * vec4(closest_hit.hit_normal + 1, 0);
     }
 
@@ -77,7 +75,7 @@ fn ray_sphere_intersect(center: vec3<f32>, radius: f32, ray: Ray) -> HitInfo {
     let h = dot(ray.direction, oc);
     let c = length(oc) * length(oc) - radius * radius;
     let discriminant = h * h - a * c;
-    var t = -1.0;
+    var t = INFINITY;
     if (discriminant >= 0) {
         t = (h - sqrt(discriminant)) / a;
     }
@@ -101,9 +99,13 @@ fn ray_aabb(box_min: vec3<f32>, box_max: vec3<f32>, ray: Ray) -> HitInfo {
     let t2 = max(t_min, t_max);
     let t_near = max(max(t1.x, t1.y), t1.z);
     let t_far = min(min(t2.x, t2.y), t2.z);
-    var t = -1.0;
+    var t = INFINITY;
     if (t_near <= t_far && t_far > 0.0) {
-        t = t_near;
+        if (t_near > 0.0) {
+            t = t_near;
+        } else {
+            t = t_far;
+        }
     }
 
     // hit info stuff
