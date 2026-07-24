@@ -3,13 +3,13 @@ use crate::camera::Camera;
 use crate::display::Display;
 use crate::render_context::RenderContext;
 use crate::renderer::{RenderTexture, Renderer};
-use glam::{DVec2, Vec2, Vec3};
+use crate::world::world_renderer::WorldRenderer;
+use glam::{Vec2, Vec3};
 use std::num::NonZeroU32;
 use std::sync::Arc;
 use std::time::Duration;
 use winit::keyboard::KeyCode;
 use winit::window::{Fullscreen, Window};
-use crate::world::world_renderer::WorldRenderer;
 
 pub struct App {
     window: Arc<Window>,

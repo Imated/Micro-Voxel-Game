@@ -74,7 +74,7 @@ fn ray_color(ray: Ray) -> vec4<f32> {
                 let info = ray_aabb(
                     vec3<f32>(-CHUNK_SIZE * VOXEL_SIZE / 2),
                     vec3<f32>(CHUNK_SIZE * VOXEL_SIZE / 2),
-                     Ray(ray.origin - vec3<f32>(f32(x), f32(y), f32(z)) * CHUNK_SIZE * VOXEL_SIZE, ray.direction)
+                    Ray(ray.origin - vec3<f32>(f32(x), f32(y), f32(z)) * CHUNK_SIZE * VOXEL_SIZE, ray.direction)
                  );
                 if (info.t < closest_hit.t) {
                     closest_hit = info;
