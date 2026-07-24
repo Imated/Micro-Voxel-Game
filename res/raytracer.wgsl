@@ -61,6 +61,11 @@ fn ray_color(ray: Ray) -> vec4<f32> {
 //    let hit_info = ray_aabb(vec3(-0.1, -0.1, -0.1), vec3(0.1, 0.1, 0.1), ray);
 //    let hit_info2 = ray_aabb(vec3(0.1, -0.1, -0.1), vec3(0.3, 0.1, 0.1), ray);
 //    let voxels = array<HitInfo, 2>(hit_info, hit_info2);
+    // check if ray actually hit ANY of the chunks, if not just return sky and skip checking chunks
+    if (ray_aabb(vec3<f32>(-CHUNK_SIZE * VOXEL_SIZE * 32 / 2), vec3<f32>(CHUNK_SIZE * VOXEL_SIZE * 32 / 2), ray).t == INFINITY) {
+        return sky(ray);
+    }
+
     var closest_hit: HitInfo = HitInfo(vec3<f32>(), vec3<f32>(), INFINITY, false);
 
     for (var x = 0u; x < 32; x++) {
@@ -87,8 +92,12 @@ fn ray_color(ray: Ray) -> vec4<f32> {
         return 0.5 * vec4(closest_hit.hit_normal + 1, 0);
     }
 
-    let a = 0.5 * (normalize(ray.direction).y + 1.0);
-    return mix(vec4<f32>(1), vec4<f32>(0.5, 0.7, 1.0, 1.0), a);
+    return sky(ray);
+}
+
+fn sky(ray: Ray) -> vec4<f32> {
+    let t = 0.5 * (normalize(ray.direction).y + 1.0);
+    return mix(vec4<f32>(1), vec4<f32>(0.5, 0.7, 1.0, 1.0), t);
 }
 
 fn ray_sphere_intersect(center: vec3<f32>, radius: f32, ray: Ray) -> HitInfo {
@@ -131,6 +140,10 @@ fn ray_aabb(box_min: vec3<f32>, box_max: vec3<f32>, ray: Ray) -> HitInfo {
     }
 
     // hit info stuff
+    if (t == INFINITY) {
+        return HitInfo(vec3<f32>(0.0), vec3<f32>(0.0), t, false);
+    }
+
     let hit_point = ray.origin + ray.direction * t;
     let center = (box_min + box_max) * 0.5;
     let half_size = (box_max - box_min) * 0.5;
