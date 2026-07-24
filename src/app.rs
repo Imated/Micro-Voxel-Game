@@ -9,6 +9,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use winit::keyboard::KeyCode;
 use winit::window::{Fullscreen, Window};
+use crate::world::world_renderer::WorldRenderer;
 
 pub struct App {
     window: Arc<Window>,
@@ -18,6 +19,7 @@ pub struct App {
     renderer: Renderer,
     blitter: Blitter,
     output: RenderTexture,
+    world_renderer: WorldRenderer
 }
 
 impl App {
@@ -30,7 +32,8 @@ impl App {
             window.inner_size().height,
         );
         let camera = Camera::new(&context, Vec3::splat(0.0), 0.0, 0.0);
-        let renderer = Renderer::new(&context, &output, &camera);
+        let world_renderer = WorldRenderer::new(&context);
+        let renderer = Renderer::new(&context, &output, &camera, &world_renderer);
         let blitter = Blitter::new(&context, &output, display.surface_format());
 
         Self {
@@ -41,6 +44,7 @@ impl App {
             renderer,
             blitter,
             output,
+            world_renderer,
         }
     }
 
@@ -52,7 +56,7 @@ impl App {
 
         self.camera.update(&self.context, delta_time);
         self.renderer
-            .raytrace_pass(&mut frame, &self.output, &self.camera);
+            .raytrace_pass(&mut frame, &self.output, &self.camera, &self.world_renderer);
         self.blitter.blit(&mut frame);
 
         self.window.pre_present_notify();

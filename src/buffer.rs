@@ -35,7 +35,7 @@ impl<T: Pod + Zeroable> TypedBuffer<T> {
                 data,
                 BufferUsages::STORAGE | BufferUsages::COPY_DST,
             ),
-            buffer_type: BufferBindingType::Storage { read_only: false },
+            buffer_type: BufferBindingType::Storage { read_only: true },
             _t: PhantomData,
         }
     }

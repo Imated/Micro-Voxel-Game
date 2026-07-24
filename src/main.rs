@@ -20,6 +20,7 @@ pub mod camera;
 pub mod display;
 pub mod render_context;
 pub mod renderer;
+pub mod world;
 
 #[derive(Default)]
 pub enum AppRunner {

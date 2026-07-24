@@ -15,7 +15,13 @@ struct Camera {
     rotation: mat4x4<f32>,
 }
 
+struct Chunk {
+    empty: u32,
+}
+
 const INFINITY: f32 = 3.402823466e+38;
+const CHUNK_SIZE: f32 = 32.0;
+const VOXEL_SIZE: f32 = 0.1;
 
 @group(0) @binding(0)
 var output : texture_storage_2d<rgba16float, write>;
@@ -23,8 +29,11 @@ var output : texture_storage_2d<rgba16float, write>;
 @group(1) @binding(0)
 var<uniform> camera : Camera;
 
+@group(2) @binding(0)
+var<storage, read> chunks : array<array<array<Chunk, 32>, 1>, 32>;
+
 @compute
-@workgroup_size(8, 8)
+@workgroup_size(16, 16)
 fn main(@builtin(global_invocation_id) id : vec3<u32>) {
     let size = textureDimensions(output);
 
@@ -49,15 +58,28 @@ fn main(@builtin(global_invocation_id) id : vec3<u32>) {
 
 fn ray_color(ray: Ray) -> vec4<f32> {
     //let hit_info = ray_sphere_intersect(vec3(0, 0, -1), 0.5, ray);
-    let hit_info = ray_aabb(vec3(-0.1, -0.1, -0.1), vec3(0.1, 0.1, 0.1), ray);
-    let hit_info2 = ray_aabb(vec3(0.1, -0.1, -0.1), vec3(0.3, 0.1, 0.1), ray);
-    let voxels = array<HitInfo, 2>(hit_info, hit_info2);
+//    let hit_info = ray_aabb(vec3(-0.1, -0.1, -0.1), vec3(0.1, 0.1, 0.1), ray);
+//    let hit_info2 = ray_aabb(vec3(0.1, -0.1, -0.1), vec3(0.3, 0.1, 0.1), ray);
+//    let voxels = array<HitInfo, 2>(hit_info, hit_info2);
     var closest_hit: HitInfo = HitInfo(vec3<f32>(), vec3<f32>(), INFINITY, false);
 
-    for (var i = 0u; i < 2; i++) {
-        let info = voxels[i];
-        if (info.t < closest_hit.t) {
-            closest_hit = info;
+    for (var x = 0u; x < 32; x++) {
+        for (var y = 0u; y < 1; y++) {
+            for (var z = 0u; z < 32; z++) {
+                let chunk = chunks[x][y][z];
+                let empty = chunk.empty != 0;
+                if (empty) {
+                    continue;
+                }
+                let info = ray_aabb(
+                    vec3<f32>(-CHUNK_SIZE * VOXEL_SIZE / 2),
+                    vec3<f32>(CHUNK_SIZE * VOXEL_SIZE / 2),
+                     Ray(ray.origin - vec3<f32>(f32(x), f32(y), f32(z)) * CHUNK_SIZE * VOXEL_SIZE, ray.direction)
+                 );
+                if (info.t < closest_hit.t) {
+                    closest_hit = info;
+                }
+            }
         }
     }
 

@@ -9,6 +9,7 @@ use wgpu::{
     TextureFormat, TextureUsages, TextureView, TextureViewDescriptor, TextureViewDimension,
     include_wgsl,
 };
+use crate::world::world_renderer::WorldRenderer;
 
 pub struct RenderTexture {
     pub output: Texture,
@@ -55,7 +56,7 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    pub fn new(context: &RenderContext, output: &RenderTexture, camera: &Camera) -> Self {
+    pub fn new(context: &RenderContext, output: &RenderTexture, camera: &Camera, world_renderer: &WorldRenderer) -> Self {
         let bind_group_layout =
             context
                 .device
@@ -82,7 +83,7 @@ impl Renderer {
             .device
             .create_pipeline_layout(&PipelineLayoutDescriptor {
                 label: Some("Raytracing Pipeline Layout"),
-                bind_group_layouts: &[Some(&bind_group_layout), Some(&camera.get_layout())],
+                bind_group_layouts: &[Some(&bind_group_layout), Some(&camera.get_layout()), Some(world_renderer.layout())],
                 immediate_size: 0,
             });
 
@@ -108,7 +109,7 @@ impl Renderer {
         self.bind_group = Self::create_bind_group(context, &self.bind_group_layout, output_view);
     }
 
-    pub fn raytrace_pass(&self, frame: &mut Frame, output: &RenderTexture, camera: &Camera) {
+    pub fn raytrace_pass(&self, frame: &mut Frame, output: &RenderTexture, camera: &Camera, world_renderer: &WorldRenderer) {
         let mut compute_pass = frame.encoder.begin_compute_pass(&ComputePassDescriptor {
             label: Some("Raytracer Compute Pass"),
             timestamp_writes: None,
@@ -117,7 +118,8 @@ impl Renderer {
         compute_pass.set_pipeline(&self.pipeline);
         compute_pass.set_bind_group(0, &self.bind_group, &[]);
         compute_pass.set_bind_group(1, camera.get_bind_group(), &[]);
-        compute_pass.dispatch_workgroups(output.width.div_ceil(8), output.height.div_ceil(8), 1)
+        compute_pass.set_bind_group(2, world_renderer.bind_group(), &[]);
+        compute_pass.dispatch_workgroups(output.width.div_ceil(16), output.height.div_ceil(16), 1)
     }
 
     fn create_bind_group(
