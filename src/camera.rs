@@ -1,8 +1,7 @@
 use crate::buffer::TypedBuffer;
 use crate::render_context::RenderContext;
 use bytemuck::{Pod, Zeroable};
-use glam::dcamera::lh::view::look_to_mat4;
-use glam::{DMat4, DVec2, DVec3, Mat4, Vec2, Vec3, Vec4};
+use glam::{Mat4, Vec2, Vec3, Vec4};
 use std::f32::consts::FRAC_PI_2;
 use std::time::Duration;
 use wgpu::{
@@ -131,12 +130,8 @@ impl Camera {
 
         self.mouse_delta = Vec2::ZERO;
 
-        // - 0.001 so when u look all the way down or all the way up it doesnt invert forward vector
-        if self.pitch < -(FRAC_PI_2 - 0.001) {
-            self.pitch = -(FRAC_PI_2 - 0.001);
-        } else if self.pitch > FRAC_PI_2 - 0.001 {
-            self.pitch = FRAC_PI_2 - 0.001;
-        }
+        // -/+ 0.001 so when u look all the way down or all the way up it doesn't invert forward vector
+        self.pitch = self.pitch.clamp(-FRAC_PI_2 + 0.001, FRAC_PI_2 - 0.001);
 
         self.buffer.update(
             context,

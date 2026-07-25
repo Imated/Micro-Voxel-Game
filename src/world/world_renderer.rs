@@ -1,7 +1,7 @@
-use wgpu::{BindGroup, BindGroupDescriptor, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, ShaderStages};
 use crate::buffer::TypedBuffer;
 use crate::render_context::RenderContext;
 use crate::world::chunk::Chunk;
+use wgpu::{BindGroup, BindGroupDescriptor, BindGroupLayout, BindGroupLayoutDescriptor, ShaderStages};
 
 pub struct WorldRenderer {
     // 32x1x32 chunk grid, eventually somehow get this from World struct,
@@ -13,7 +13,7 @@ pub struct WorldRenderer {
 
 impl WorldRenderer {
     pub fn new(context: &RenderContext) -> Self {
-        let buffer = TypedBuffer::new_storage(&context, [[[Chunk { empty: 0 }; 32]; 1]; 32]);
+        let buffer = TypedBuffer::new_storage(context, [[[Chunk { empty: 0 }; 32]; 1]; 32]);
         let layout = context
             .device
             .create_bind_group_layout(&BindGroupLayoutDescriptor {

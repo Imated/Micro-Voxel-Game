@@ -24,20 +24,20 @@ const CHUNK_SIZE: f32 = 32.0;
 const VOXEL_SIZE: f32 = 0.1;
 
 @group(0) @binding(0)
-var output : texture_storage_2d<rgba16float, write>;
+var output: texture_storage_2d<rgba16float, write>;
 
 @group(1) @binding(0)
-var<uniform> camera : Camera;
+var<uniform> camera: Camera;
 
 @group(2) @binding(0)
-var<storage, read> chunks : array<array<array<Chunk, 32>, 1>, 32>;
+var<storage, read> chunks: array<array<array<Chunk, 32>, 1>, 32>;
 
 @compute
 @workgroup_size(16, 16)
-fn main(@builtin(global_invocation_id) id : vec3<u32>) {
+fn main(@builtin(global_invocation_id) id: vec3<u32>) {
     let size = textureDimensions(output);
 
-    if (id.x >= size.x || id.y >= size.y) {
+    if id.x >= size.x || id.y >= size.y {
         return;
     }
 
@@ -58,11 +58,11 @@ fn main(@builtin(global_invocation_id) id : vec3<u32>) {
 
 fn ray_color(ray: Ray) -> vec4<f32> {
     //let hit_info = ray_sphere_intersect(vec3(0, 0, -1), 0.5, ray);
-//    let hit_info = ray_aabb(vec3(-0.1, -0.1, -0.1), vec3(0.1, 0.1, 0.1), ray);
-//    let hit_info2 = ray_aabb(vec3(0.1, -0.1, -0.1), vec3(0.3, 0.1, 0.1), ray);
-//    let voxels = array<HitInfo, 2>(hit_info, hit_info2);
+    //    let hit_info = ray_aabb(vec3(-0.1, -0.1, -0.1), vec3(0.1, 0.1, 0.1), ray);
+    //    let hit_info2 = ray_aabb(vec3(0.1, -0.1, -0.1), vec3(0.3, 0.1, 0.1), ray);
+    //    let voxels = array<HitInfo, 2>(hit_info, hit_info2);
     // check if ray actually hit ANY of the chunks, if not just return sky and skip checking chunks
-    if (ray_aabb(vec3<f32>(-CHUNK_SIZE * VOXEL_SIZE * 32 / 2), vec3<f32>(CHUNK_SIZE * VOXEL_SIZE * 32 / 2), ray).t == INFINITY) {
+    if ray_aabb(vec3<f32>(-CHUNK_SIZE * VOXEL_SIZE * 32 / 2), vec3<f32>(CHUNK_SIZE * VOXEL_SIZE * 32 / 2), ray).t == INFINITY {
         return sky(ray);
     }
 
@@ -73,22 +73,22 @@ fn ray_color(ray: Ray) -> vec4<f32> {
             for (var z = 0u; z < 32; z++) {
                 let chunk = chunks[x][y][z];
                 let empty = chunk.empty != 0;
-                if (empty) {
+                if empty {
                     continue;
                 }
                 let info = ray_aabb(
                     vec3<f32>(-CHUNK_SIZE * VOXEL_SIZE / 2),
                     vec3<f32>(CHUNK_SIZE * VOXEL_SIZE / 2),
                     Ray(ray.origin - vec3<f32>(f32(x), f32(y), f32(z)) * CHUNK_SIZE * VOXEL_SIZE, ray.direction)
-                 );
-                if (info.t < closest_hit.t) {
+                );
+                if info.t < closest_hit.t {
                     closest_hit = info;
                 }
             }
         }
     }
 
-    if (closest_hit.t != INFINITY) {
+    if closest_hit.t != INFINITY {
         return 0.5 * vec4(closest_hit.hit_normal + 1, 0);
     }
 
@@ -107,7 +107,7 @@ fn ray_sphere_intersect(center: vec3<f32>, radius: f32, ray: Ray) -> HitInfo {
     let c = length(oc) * length(oc) - radius * radius;
     let discriminant = h * h - a * c;
     var t = INFINITY;
-    if (discriminant >= 0) {
+    if discriminant >= 0 {
         t = (h - sqrt(discriminant)) / a;
     }
 
@@ -116,7 +116,7 @@ fn ray_sphere_intersect(center: vec3<f32>, radius: f32, ray: Ray) -> HitInfo {
     let outward_normal = (hit_point - center) / radius;
     let front_face = dot(ray.direction, outward_normal) < 0;
     var normal = outward_normal;
-    if (!front_face) {
+    if !front_face {
         normal = -outward_normal;
     }
 
@@ -131,8 +131,8 @@ fn ray_aabb(box_min: vec3<f32>, box_max: vec3<f32>, ray: Ray) -> HitInfo {
     let t_near = max(max(t1.x, t1.y), t1.z);
     let t_far = min(min(t2.x, t2.y), t2.z);
     var t = INFINITY;
-    if (t_near <= t_far && t_far > 0.0) {
-        if (t_near > 0.0) {
+    if t_near <= t_far && t_far > 0.0 {
+        if t_near > 0.0 {
             t = t_near;
         } else {
             t = t_far;
@@ -140,7 +140,7 @@ fn ray_aabb(box_min: vec3<f32>, box_max: vec3<f32>, ray: Ray) -> HitInfo {
     }
 
     // hit info stuff
-    if (t == INFINITY) {
+    if t == INFINITY {
         return HitInfo(vec3<f32>(0.0), vec3<f32>(0.0), t, false);
     }
 
@@ -150,14 +150,14 @@ fn ray_aabb(box_min: vec3<f32>, box_max: vec3<f32>, ray: Ray) -> HitInfo {
     let local = (hit_point - center) / half_size;
     let abs_local = abs(local);
     var outward_normal = vec3<f32>(sign(local.x), 0.0, 0.0);
-    if (abs_local.y > abs_local.x && abs_local.y > abs_local.z) {
+    if abs_local.y > abs_local.x && abs_local.y > abs_local.z {
         outward_normal = vec3<f32>(0.0, sign(local.y), 0.0);
-    } else if (abs_local.z > abs_local.x && abs_local.z > abs_local.y) {
+    } else if abs_local.z > abs_local.x && abs_local.z > abs_local.y {
         outward_normal = vec3<f32>(0.0, 0.0, sign(local.z));
     }
     let front_face = dot(ray.direction, outward_normal) < 0;
     var normal = outward_normal;
-    if (!front_face) {
+    if !front_face {
         normal = -outward_normal;
     }
 

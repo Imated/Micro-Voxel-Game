@@ -1,16 +1,17 @@
 use crate::AppRunner::Running;
 use crate::app::App;
-use glam::{DVec2, Vec2};
+use glam::Vec2;
 use std::num::NonZeroU32;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tracing::{Level, debug, info};
+use tracing::{Level, info};
 use tracing_subscriber::EnvFilter;
 use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalSize;
 use winit::event::{DeviceEvent, DeviceId, KeyEvent, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{KeyCode, PhysicalKey};
+use winit::keyboard::PhysicalKey::Code;
 use winit::window::{CursorGrabMode, Window, WindowAttributes, WindowId};
 
 mod app;
@@ -27,7 +28,7 @@ pub enum AppRunner {
     #[default]
     Uninitialized,
     Running {
-        app: App,
+        app: Box<App>,
         frame_count: i64,
         window: Arc<Window>,
         delta_time: Duration,
@@ -47,7 +48,7 @@ impl ApplicationHandler for AppRunner {
         );
 
         *self = Running {
-            app: App::new(window.clone()),
+            app: Box::new(App::new(window.clone())),
             frame_count: 0,
             window,
             delta_time: Duration::new(0, 0),
@@ -96,22 +97,6 @@ impl ApplicationHandler for AppRunner {
                 };
 
                 app.on_resize(width, height);
-            }
-
-            WindowEvent::KeyboardInput {
-                event:
-                    KeyEvent {
-                        physical_key: PhysicalKey::Code(code),
-                        state,
-                        repeat: false,
-                        ..
-                    },
-                ..
-            } => match (code, state.is_pressed()) {
-                (KeyCode::Escape, true) => event_loop.exit(),
-                (code, is_pressed) => {
-                    app.on_key_event(code, is_pressed);
-                }
             },
             WindowEvent::Focused(focused) => {
                 if !focused {
@@ -133,7 +118,7 @@ impl ApplicationHandler for AppRunner {
 
     fn device_event(
         &mut self,
-        _event_loop: &ActiveEventLoop,
+        event_loop: &ActiveEventLoop,
         _device_id: DeviceId,
         event: DeviceEvent,
     ) {
@@ -144,6 +129,16 @@ impl ApplicationHandler for AppRunner {
         match event {
             DeviceEvent::MouseMotion { delta } => {
                 app.on_mouse_moved(Vec2::new(delta.0 as f32, delta.1 as f32));
+            },
+            DeviceEvent::Key(key_event) => {
+                if let Code(key_code) = key_event.physical_key {
+                    match (key_code, key_event.state.is_pressed()) {
+                        (KeyCode::Escape, true) => event_loop.exit(),
+                        (code, is_pressed) => {
+                            app.on_key_event(code, is_pressed);
+                        }
+                    }
+                }
             }
             _ => {}
         }
