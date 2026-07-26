@@ -10,8 +10,8 @@ use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalSize;
 use winit::event::{DeviceEvent, DeviceId, KeyEvent, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
+use winit::keyboard::KeyCode;
 use winit::keyboard::PhysicalKey::Code;
-use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{CursorGrabMode, Window, WindowAttributes, WindowId};
 
 mod app;
@@ -134,7 +134,7 @@ impl ApplicationHandler for AppRunner {
 
     fn device_event(
         &mut self,
-        event_loop: &ActiveEventLoop,
+        _event_loop: &ActiveEventLoop,
         _device_id: DeviceId,
         event: DeviceEvent,
     ) {
@@ -142,12 +142,8 @@ impl ApplicationHandler for AppRunner {
             return;
         };
 
-        match event {
-            DeviceEvent::MouseMotion { delta } => {
-                app.on_mouse_moved(Vec2::new(delta.0 as f32, delta.1 as f32));
-            }
-            DeviceEvent::Key(key_event) => if let Code(key_code) = key_event.physical_key {},
-            _ => {}
+        if let DeviceEvent::MouseMotion { delta } = event {
+            app.on_mouse_moved(Vec2::new(delta.0 as f32, delta.1 as f32));
         }
     }
 }
