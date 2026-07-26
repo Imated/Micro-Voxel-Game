@@ -19,7 +19,7 @@ pub struct App {
     renderer: Renderer,
     blitter: Blitter,
     output: RenderTexture,
-    world_renderer: WorldRenderer
+    world_renderer: WorldRenderer,
 }
 
 impl App {

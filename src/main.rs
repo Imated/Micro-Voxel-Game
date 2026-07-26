@@ -10,8 +10,8 @@ use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalSize;
 use winit::event::{DeviceEvent, DeviceId, KeyEvent, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
-use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::keyboard::PhysicalKey::Code;
+use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{CursorGrabMode, Window, WindowAttributes, WindowId};
 
 mod app;
@@ -51,7 +51,7 @@ impl ApplicationHandler for AppRunner {
             app: Box::new(App::new(window.clone())),
             frame_count: 0,
             window,
-            delta_time: Duration::new(0, 0),
+            delta_time: Duration::ZERO,
         };
     }
 
@@ -79,7 +79,7 @@ impl ApplicationHandler for AppRunner {
                 app.render(*delta_time);
 
                 *delta_time = prev.elapsed();
-                if *frame_count % 512 == 0 {
+                if *frame_count % (512.0 * (1.0 - delta_time.as_secs_f32())) as i64 == 0 {
                     window.set_title(&format!(
                         "Micro Voxels - {:.1?} FPS",
                         1.0 / delta_time.as_secs_f64()
@@ -97,7 +97,7 @@ impl ApplicationHandler for AppRunner {
                 };
 
                 app.on_resize(width, height);
-            },
+            }
             WindowEvent::Focused(focused) => {
                 if !focused {
                     return;
@@ -109,6 +109,22 @@ impl ApplicationHandler for AppRunner {
                     .expect("Failed to grab cursor");
                 window.set_cursor_visible(false);
             }
+            WindowEvent::KeyboardInput {
+                event:
+                    KeyEvent {
+                        physical_key: Code(code),
+                        state,
+                        repeat: false,
+                        ..
+                    },
+                ..
+            } => match (code, state.is_pressed()) {
+                (KeyCode::Escape, true) => event_loop.exit(),
+                (code, is_pressed) => {
+                    app.on_key_event(code, is_pressed);
+                }
+            },
+
             WindowEvent::CloseRequested => {
                 event_loop.exit();
             }
@@ -129,17 +145,8 @@ impl ApplicationHandler for AppRunner {
         match event {
             DeviceEvent::MouseMotion { delta } => {
                 app.on_mouse_moved(Vec2::new(delta.0 as f32, delta.1 as f32));
-            },
-            DeviceEvent::Key(key_event) => {
-                if let Code(key_code) = key_event.physical_key {
-                    match (key_code, key_event.state.is_pressed()) {
-                        (KeyCode::Escape, true) => event_loop.exit(),
-                        (code, is_pressed) => {
-                            app.on_key_event(code, is_pressed);
-                        }
-                    }
-                }
             }
+            DeviceEvent::Key(key_event) => if let Code(key_code) = key_event.physical_key {},
             _ => {}
         }
     }
