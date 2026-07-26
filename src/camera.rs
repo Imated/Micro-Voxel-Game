@@ -137,7 +137,7 @@ impl Camera {
             context,
             CameraUniform {
                 position: self.position.extend(0.0),
-                rotation: self.calc_matrix(),
+                rotation,
             },
         );
     }
