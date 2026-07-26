@@ -1,6 +1,7 @@
 use crate::AppRunner::Running;
 use crate::app::App;
 use glam::Vec2;
+use std::cmp::max;
 use std::num::NonZeroU32;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -79,7 +80,8 @@ impl ApplicationHandler for AppRunner {
                 app.render(*delta_time);
 
                 *delta_time = prev.elapsed();
-                if *frame_count % max((512.0 * (1.0 - delta_time.as_secs_f32())), 5) as i64 == 0 {
+                let threshold = (512.0 * (1.0 - delta_time.as_secs_f32())).max(5.0) as i64;
+                if *frame_count % threshold == 0 {
                     window.set_title(&format!(
                         "Micro Voxels - {:.1?} FPS",
                         1.0 / delta_time.as_secs_f64()
