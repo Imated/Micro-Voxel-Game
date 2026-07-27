@@ -1,7 +1,6 @@
 use crate::AppRunner::Running;
 use crate::app::App;
 use glam::Vec2;
-use std::cmp::max;
 use std::num::NonZeroU32;
 use std::sync::Arc;
 use std::time::{Duration, Instant};

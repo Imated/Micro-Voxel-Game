@@ -78,7 +78,7 @@ impl Renderer {
 
         let shader = context
             .device
-            .create_shader_module(include_wgsl!(".././res/raytracer.wgsl"));
+            .create_shader_module(include_wgsl!(".././res/compiled/raytracer.wgsl"));
         let layout = context
             .device
             .create_pipeline_layout(&PipelineLayoutDescriptor {

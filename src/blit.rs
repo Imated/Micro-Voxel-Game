@@ -62,7 +62,7 @@ impl Blitter {
 
         let shader = context
             .device
-            .create_shader_module(include_wgsl!(".././res/blit.wgsl"));
+            .create_shader_module(include_wgsl!(".././res/compiled/blit.wgsl"));
         let layout = context
             .device
             .create_pipeline_layout(&PipelineLayoutDescriptor {

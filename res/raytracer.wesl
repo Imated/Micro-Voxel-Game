@@ -80,6 +80,9 @@ fn ray_color(ray: Ray) -> vec4<f32> {
 
     var closest_hit: HitInfo = HitInfo(vec3<f32>(), vec3<f32>(), INFINITY, false);
 
+    let brick_coord = vec3<u32>((camera.position.xyz + vec3(CHUNK_SIZE * VOXEL_SIZE * 32 / 2)) / VOXEL_SIZE);
+    let start_brick = get_global_brick(brick_coord);
+
     // chunks in world * bricks per axis (32 * 8)
     for (var x = 0u; x < 32 * u32(CHUNK_SIZE); x++) {
         for (var y = 0u; y < 1 * u32(CHUNK_SIZE); y++) {

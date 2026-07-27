@@ -10,5 +10,9 @@ glam = { version = "0.33.2", features = ["bytemuck"] }
 pollster = "1.0.1"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+wesl = "0.4.1"
 wgpu = "30.0.0"
 winit = "0.30.13"
+
+[build-dependencies]
+wesl = "0.4.1"
