@@ -16,11 +16,15 @@ struct Camera {
 }
 
 struct Chunk {
+    bricks: array<array<array<Brick, 8>, 8>, 8>
+}
+
+struct Brick {
     empty: u32,
 }
 
 const INFINITY: f32 = 3.402823466e+38;
-const CHUNK_SIZE: f32 = 32.0;
+const CHUNK_SIZE: f32 = 8.0;
 const VOXEL_SIZE: f32 = 0.1;
 
 @group(0) @binding(0)
@@ -31,6 +35,14 @@ var<uniform> camera: Camera;
 
 @group(2) @binding(0)
 var<storage, read> chunks: array<array<array<Chunk, 32>, 1>, 32>;
+
+fn get_global_brick(coords: vec3<u32>) -> Brick {
+    let chunk_coord = coords / vec3<u32>(u32(CHUNK_SIZE));
+    let local_coord = coords % vec3<u32>(u32(CHUNK_SIZE));
+    let chunk = chunks[chunk_coord.x][chunk_coord.y][chunk_coord.z];
+
+    return chunk.bricks[local_coord.x][local_coord.y][local_coord.z];
+}
 
 @compute
 @workgroup_size(16, 16)
@@ -68,18 +80,19 @@ fn ray_color(ray: Ray) -> vec4<f32> {
 
     var closest_hit: HitInfo = HitInfo(vec3<f32>(), vec3<f32>(), INFINITY, false);
 
-    for (var x = 0u; x < 32; x++) {
-        for (var y = 0u; y < 1; y++) {
-            for (var z = 0u; z < 32; z++) {
-                let chunk = chunks[x][y][z];
-                let empty = chunk.empty != 0;
+    // chunks in world * bricks per axis (32 * 8)
+    for (var x = 0u; x < 32 * u32(CHUNK_SIZE); x++) {
+        for (var y = 0u; y < 1 * u32(CHUNK_SIZE); y++) {
+            for (var z = 0u; z < 32 * u32(CHUNK_SIZE); z++) {
+                let brick = get_global_brick(vec3<u32>(x, y, z));
+                let empty = brick.empty != 0;
                 if empty {
                     continue;
                 }
                 let info = ray_aabb(
-                    vec3<f32>(-CHUNK_SIZE * VOXEL_SIZE / 2),
-                    vec3<f32>(CHUNK_SIZE * VOXEL_SIZE / 2),
-                    Ray(ray.origin - vec3<f32>(f32(x), f32(y), f32(z)) * CHUNK_SIZE * VOXEL_SIZE, ray.direction)
+                    vec3<f32>(-VOXEL_SIZE / 2),
+                    vec3<f32>(VOXEL_SIZE / 2),
+                    Ray(ray.origin - vec3<f32>(f32(x), f32(y), f32(z)) * VOXEL_SIZE, ray.direction)
                 );
                 if info.t < closest_hit.t {
                     closest_hit = info;

@@ -1,7 +1,18 @@
 use bytemuck::{Pod, Zeroable};
+use crate::world::brick::Brick;
 
 #[repr(C)]
-#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
+#[derive(Debug, Copy, Clone, Pod, Zeroable)]
 pub struct Chunk {
-    pub empty: u32, // fake bool bc pod annoying
+    pub bricks: [[[Brick; 8]; 8]; 8],
+}
+
+impl Chunk {
+
+    // test fn to create a chunk thats entirely filled with stuff
+    pub fn new_from_full() -> Self {
+        Self {
+            bricks: [[[Brick { empty: false as u32 }; 8]; 8]; 8],
+        }
+    }
 }

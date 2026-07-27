@@ -13,7 +13,7 @@ pub struct WorldRenderer {
 
 impl WorldRenderer {
     pub fn new(context: &RenderContext) -> Self {
-        let buffer = TypedBuffer::new_storage(context, [[[Chunk { empty: 0 }; 32]; 1]; 32]);
+        let buffer = TypedBuffer::new_storage(context, [[[Chunk::new_from_full(); 32]; 1]; 32]);
         let layout = context
             .device
             .create_bind_group_layout(&BindGroupLayoutDescriptor {
