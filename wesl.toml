@@ -1,0 +1,6 @@
+edition = "2026_pre"
+root = "./res"
+package-manager="cargo"
+
+[dependencies]
+lygia = { path = "./vendor/lygia" }
