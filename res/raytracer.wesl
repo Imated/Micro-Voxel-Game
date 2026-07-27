@@ -16,7 +16,7 @@ struct Camera {
 }
 
 struct Chunk {
-    bricks: array<array<array<Brick, 8>, 8>, 8>
+    bricks: array<array<array<Brick, 8>, 8>, 8>,
 }
 
 struct Brick {
@@ -46,7 +46,7 @@ fn get_global_brick(coords: vec3<u32>) -> Brick {
 
 @compute
 @workgroup_size(16, 16)
-fn main(@builtin(global_invocation_id) id: vec3<u32>) {
+fn main(@builtin(global_invocation_id)id: vec3<u32>) {
     let size = textureDimensions(output);
 
     if id.x >= size.x || id.y >= size.y {
