@@ -84,9 +84,9 @@ fn ray_color(ray: Ray) -> vec4<f32> {
     let start_brick = get_global_brick(brick_coord);
 
     // chunks in world * bricks per axis (32 * 8)
-    for (var x = 0u; x < 32 * u32(CHUNK_SIZE); x++) {
-        for (var y = 0u; y < 1 * u32(CHUNK_SIZE); y++) {
-            for (var z = 0u; z < 32 * u32(CHUNK_SIZE); z++) {
+    for (var x = 0u; x < 32 * u32(CHUNK_SIZE) / 128; x++) {
+        for (var y = 0u; y < 1 * u32(CHUNK_SIZE) / 4; y++) {
+            for (var z = 0u; z < 32 * u32(CHUNK_SIZE) / 128; z++) {
                 let brick = get_global_brick(vec3<u32>(x, y, z));
                 let empty = brick.empty != 0;
                 if empty {
@@ -114,29 +114,6 @@ fn ray_color(ray: Ray) -> vec4<f32> {
 fn sky(ray: Ray) -> vec4<f32> {
     let t = 0.5 * (normalize(ray.direction).y + 1.0);
     return mix(vec4<f32>(1), vec4<f32>(0.5, 0.7, 1.0, 1.0), t);
-}
-
-fn ray_sphere_intersect(center: vec3<f32>, radius: f32, ray: Ray) -> HitInfo {
-    let oc = center - ray.origin;
-    let a = length(ray.direction) * length(ray.direction);
-    let h = dot(ray.direction, oc);
-    let c = length(oc) * length(oc) - radius * radius;
-    let discriminant = h * h - a * c;
-    var t = INFINITY;
-    if discriminant >= 0 {
-        t = (h - sqrt(discriminant)) / a;
-    }
-
-    // hit info stuff
-    let hit_point = ray.origin + ray.direction * t;
-    let outward_normal = (hit_point - center) / radius;
-    let front_face = dot(ray.direction, outward_normal) < 0;
-    var normal = outward_normal;
-    if !front_face {
-        normal = -outward_normal;
-    }
-
-    return HitInfo(hit_point, normal, t, front_face);
 }
 
 fn ray_aabb(box_min: vec3<f32>, box_max: vec3<f32>, ray: Ray) -> HitInfo {

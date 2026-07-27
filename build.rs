@@ -1,6 +1,6 @@
 use std::path::Path;
 use std::fs::{read_dir, create_dir_all};
-use wesl::Wesl;
+use wesl::{FileResolver, Router, Wesl};
 
 fn main() {
     let shader_dir = "res/";
@@ -23,7 +23,12 @@ fn main() {
                 let module_path = package_path.parse().unwrap_or_else(|e| {
                     panic!("Failed to parse WESL path for {file_stem}: {e}");
                 });
+                let mut router = Router::new();
+                router.mount_fallback_resolver(FileResolver::new(shader_dir));
+                router.mount_resolver("lygia".parse().unwrap(), FileResolver::new("vendor/lygia/"));
+
                 let result = Wesl::new(shader_dir)
+                    .set_custom_resolver(router)
                     .compile(&module_path)
                     .unwrap_or_else(|e| panic!("Failed to compile {file_stem}.wesl: {e}"));
                 let out_path = format!("{shader_dir}compiled/{file_stem}.wgsl");
