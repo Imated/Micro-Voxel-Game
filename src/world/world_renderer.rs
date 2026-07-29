@@ -1,7 +1,9 @@
 use crate::buffer::TypedBuffer;
 use crate::render_context::RenderContext;
 use crate::world::chunk::Chunk;
-use wgpu::{BindGroup, BindGroupDescriptor, BindGroupLayout, BindGroupLayoutDescriptor, ShaderStages};
+use wgpu::{
+    BindGroup, BindGroupDescriptor, BindGroupLayout, BindGroupLayoutDescriptor, ShaderStages,
+};
 
 pub struct WorldRenderer {
     // 32x1x32 chunk grid, eventually somehow get this from World struct,

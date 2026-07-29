@@ -36,12 +36,18 @@ var<uniform> camera: Camera;
 @group(2) @binding(0)
 var<storage, read> chunks: array<array<array<Chunk, 32>, 1>, 32>;
 
-fn get_global_brick(coords: vec3<u32>) -> Brick {
-    let chunk_coord = coords / vec3<u32>(u32(CHUNK_SIZE));
-    let local_coord = coords % vec3<u32>(u32(CHUNK_SIZE));
+fn get_global_brick(coords: vec3<i32>) -> Brick {
+    let offsetted_coords = coords + vec3<i32>(32, 1, 32) * vec3<i32>(i32(CHUNK_SIZE)) / 2;
+    let chunk_coord = offsetted_coords / vec3<i32>(i32(CHUNK_SIZE));
+    let local_coord = offsetted_coords % vec3<i32>(i32(CHUNK_SIZE));
     let chunk = chunks[chunk_coord.x][chunk_coord.y][chunk_coord.z];
 
     return chunk.bricks[local_coord.x][local_coord.y][local_coord.z];
+}
+
+fn is_brick_in_bounds(coords: vec3<i32>) -> bool {
+    let world_half = vec3<i32>(32, 1, 32) * vec3<i32>(i32(CHUNK_SIZE)) / 2;
+    return all(coords < world_half) && all(coords > -world_half);
 }
 
 @compute
@@ -69,43 +75,50 @@ fn main(@builtin(global_invocation_id)id: vec3<u32>) {
 }
 
 fn ray_color(ray: Ray) -> vec4<f32> {
-    //let hit_info = ray_sphere_intersect(vec3(0, 0, -1), 0.5, ray);
-    //    let hit_info = ray_aabb(vec3(-0.1, -0.1, -0.1), vec3(0.1, 0.1, 0.1), ray);
-    //    let hit_info2 = ray_aabb(vec3(0.1, -0.1, -0.1), vec3(0.3, 0.1, 0.1), ray);
-    //    let voxels = array<HitInfo, 2>(hit_info, hit_info2);
-    // check if ray actually hit ANY of the chunks, if not just return sky and skip checking chunks
-    if ray_aabb(vec3<f32>(-CHUNK_SIZE * VOXEL_SIZE * 32 / 2), vec3<f32>(CHUNK_SIZE * VOXEL_SIZE * 32 / 2), ray).t == INFINITY {
+    let world_half = vec3<f32>(32, 1, 32) * vec3<f32>(CHUNK_SIZE) * VOXEL_SIZE / 2;
+    let world_hit = ray_aabb(-world_half, world_half, ray);
+    if world_hit.t == INFINITY {
         return sky(ray);
     }
 
-    var closest_hit: HitInfo = HitInfo(vec3<f32>(), vec3<f32>(), INFINITY, false);
+    let inside_world = all(ray.origin >= -world_half) && all(ray.origin <= world_half);
+    let entry_t = select(world_hit.t + 0.0001, 0.0, inside_world);
+    let start_pos = ray.origin + ray.direction * entry_t;
 
-    let brick_coord = vec3<u32>((camera.position.xyz + vec3(CHUNK_SIZE * VOXEL_SIZE * 32 / 2)) / VOXEL_SIZE);
-    let start_brick = get_global_brick(brick_coord);
+    var current_brick = vec3<i32>(floor(start_pos / VOXEL_SIZE));
 
-    // chunks in world * bricks per axis (32 * 8)
-    for (var x = 0u; x < 32 * u32(CHUNK_SIZE) / 128; x++) {
-        for (var y = 0u; y < 1 * u32(CHUNK_SIZE) / 4; y++) {
-            for (var z = 0u; z < 32 * u32(CHUNK_SIZE) / 128; z++) {
-                let brick = get_global_brick(vec3<u32>(x, y, z));
-                let empty = brick.empty != 0;
-                if empty {
-                    continue;
-                }
-                let info = ray_aabb(
-                    vec3<f32>(-VOXEL_SIZE / 2),
-                    vec3<f32>(VOXEL_SIZE / 2),
-                    Ray(ray.origin - vec3<f32>(f32(x), f32(y), f32(z)) * VOXEL_SIZE, ray.direction)
-                );
-                if info.t < closest_hit.t {
-                    closest_hit = info;
-                }
-            }
+    let step = vec3<i32>(sign(ray.direction));
+    let t_delta = select(vec3<f32>(INFINITY), VOXEL_SIZE * abs(1 / ray.direction), step != vec3<i32>(0));
+    let frac_pos = start_pos / VOXEL_SIZE - vec3<f32>(current_brick);
+    let dist_forward = select(frac_pos, 1.0 - frac_pos, step > vec3<i32>(0));
+    var t_max = select(vec3(INFINITY), entry_t + dist_forward * t_delta, step != vec3<i32>(0));
+
+    var normal = world_hit.hit_normal;
+
+    loop {
+        // ray stepped out of loaded chunks, no point to march ray anymore
+        if (!is_brick_in_bounds(current_brick)) {
+            break;
         }
-    }
 
-    if closest_hit.t != INFINITY {
-        return 0.5 * vec4(closest_hit.hit_normal + 1, 0);
+        let brick = get_global_brick(current_brick);
+        if brick.empty == 0 {
+            return 0.5 * vec4(normal + 1, 0);
+        }
+
+        if (t_max.x < t_max.y && t_max.x < t_max.z) {
+            current_brick.x += step.x;
+            t_max.x += t_delta.x;
+            normal = vec3<f32>(-f32(step.x), 0, 0);
+        } else if (t_max.y < t_max.z) {
+            current_brick.y += step.y;
+            t_max.y += t_delta.y;
+            normal = vec3<f32>(0, -f32(step.y), 0);
+        } else {
+            current_brick.z += step.z;
+            t_max.z += t_delta.z;
+            normal = vec3<f32>(0, 0, -f32(step.z));
+        }
     }
 
     return sky(ray);
