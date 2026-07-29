@@ -33,7 +33,7 @@ impl RenderContext {
         let (device, queue) = adapter
             .request_device(&DeviceDescriptor {
                 label: None,
-                required_features: Features::EXPERIMENTAL_RAY_TRACING_PIPELINES,
+                required_features: Features::empty(),
                 experimental_features: unsafe { ExperimentalFeatures::enabled() },
                 required_limits: Limits::default(),
                 memory_hints: MemoryHints::Performance,
