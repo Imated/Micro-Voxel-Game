@@ -1,6 +1,3 @@
-[submodule "lygia"]
-	path = lygia
-	url = https://github.com/patriciogonzalezvivo/lygia.git
 [submodule "vendor/lygia"]
 	path = vendor/lygia
 	url = https://github.com/patriciogonzalezvivo/lygia.git
