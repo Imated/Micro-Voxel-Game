@@ -47,7 +47,7 @@ fn get_global_brick(coords: vec3<i32>) -> Brick {
 
 fn is_brick_in_bounds(coords: vec3<i32>) -> bool {
     let world_half = vec3<i32>(32, 1, 32) * vec3<i32>(i32(CHUNK_SIZE)) / 2;
-    return all(coords < world_half) && all(coords > -world_half);
+    return all(coords <= world_half) && all(coords >= -world_half);
 }
 
 @compute
@@ -81,17 +81,18 @@ fn ray_color(ray: Ray) -> vec4<f32> {
         return sky(ray);
     }
 
+    // either the first point where the ray hits if we are outside of the world or the brick we are in if we are inside
     let inside_world = all(ray.origin >= -world_half) && all(ray.origin <= world_half);
-    let entry_t = select(world_hit.t + 0.0001, 0.0, inside_world);
-    let start_pos = ray.origin + ray.direction * entry_t;
+    let t = select(world_hit.t + 0.0001, 0.0, inside_world);
+    let start_pos = ray.origin + ray.direction * t;
 
     var current_brick = vec3<i32>(floor(start_pos / VOXEL_SIZE));
 
     let step = vec3<i32>(sign(ray.direction));
     let t_delta = select(vec3<f32>(INFINITY), VOXEL_SIZE * abs(1 / ray.direction), step != vec3<i32>(0));
-    let frac_pos = start_pos / VOXEL_SIZE - vec3<f32>(current_brick);
-    let dist_forward = select(frac_pos, 1.0 - frac_pos, step > vec3<i32>(0));
-    var t_max = select(vec3(INFINITY), entry_t + dist_forward * t_delta, step != vec3<i32>(0));
+    let cell_min = vec3<f32>(current_brick) * VOXEL_SIZE;
+    let cb = select(cell_min, cell_min + vec3<f32>(VOXEL_SIZE), ray.direction > vec3<f32>(0));
+    var t_max = select(vec3(INFINITY), (cb - start_pos) / ray.direction, step != vec3<i32>(0));
 
     var normal = world_hit.hit_normal;
 
@@ -109,15 +110,21 @@ fn ray_color(ray: Ray) -> vec4<f32> {
         if (t_max.x < t_max.y && t_max.x < t_max.z) {
             current_brick.x += step.x;
             t_max.x += t_delta.x;
-            normal = vec3<f32>(-f32(step.x), 0, 0);
+
+            normal = vec3<f32>(0);
+            normal.x = -f32(step.x);
         } else if (t_max.y < t_max.z) {
             current_brick.y += step.y;
             t_max.y += t_delta.y;
-            normal = vec3<f32>(0, -f32(step.y), 0);
+
+            normal = vec3<f32>(0);
+            normal.y = -f32(step.y);
         } else {
             current_brick.z += step.z;
             t_max.z += t_delta.z;
-            normal = vec3<f32>(0, 0, -f32(step.z));
+
+            normal = vec3<f32>(0);
+            normal.z = -f32(step.z);
         }
     }
 
