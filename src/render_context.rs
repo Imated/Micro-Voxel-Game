@@ -34,7 +34,7 @@ impl RenderContext {
             .request_device(&DeviceDescriptor {
                 label: None,
                 required_features: Features::empty(),
-                experimental_features: unsafe { ExperimentalFeatures::enabled() },
+                experimental_features: ExperimentalFeatures::disabled(),
                 required_limits: Limits::default(),
                 memory_hints: MemoryHints::Performance,
                 trace: Trace::Off,

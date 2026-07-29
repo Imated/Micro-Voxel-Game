@@ -1,3 +1,42 @@
+var<private> a: u32;
+var<private> b: u32;
+var<private> c: u32;
+var<private> d: u32;
+
+// https://indico.cern.ch/event/93877/contributions/2118070/attachments/1104200/1575343/acat3_revised_final.pdf
+fn rand() -> f32 {
+    let e = a - rotate(b, 27);
+    a = b ^ rotate(c, 17);
+    b = c + d;
+    c = d + e;
+    d = e + a;
+    return f32(d) / 0xFFFFFFFF;
+}
+
+fn rand_init(seed: u32) {
+    a = 0xF1EA5EED;
+    b = seed;
+    c = seed;
+    d = seed;
+
+    for(var i = 0; i < 20; i++) {
+        rand();
+    }
+}
+
+fn rotate(x: u32, k: u32) -> u32 {
+    return ((x << k) | (x >> (32 - k)));
+}
+
+fn rand_unit_vector() -> vec3<f32> {
+    return normalize(vec3<f32>(rand() * 2 - 1, rand() * 2- 1, rand() * 2 - 1));
+}
+
+fn rand_on_hemisphere(normal: vec3<f32>) -> vec3<f32> {
+    let dir = rand_unit_vector();
+    return dir * sign(dot(dir, normal));
+}
+
 struct Ray {
     origin: vec3<f32>,
     direction: vec3<f32>,
@@ -26,6 +65,7 @@ struct Brick {
 const INFINITY: f32 = 3.402823466e+38;
 const CHUNK_SIZE: f32 = 8.0;
 const VOXEL_SIZE: f32 = 0.1;
+const EPSILON: f32 = 0.000001;
 
 @group(0) @binding(0)
 var output: texture_storage_2d<rgba16float, write>;
@@ -47,7 +87,7 @@ fn get_global_brick(coords: vec3<i32>) -> Brick {
 
 fn is_brick_in_bounds(coords: vec3<i32>) -> bool {
     let world_half = vec3<i32>(32, 1, 32) * vec3<i32>(i32(CHUNK_SIZE)) / 2;
-    return all(coords <= world_half) && all(coords >= -world_half);
+    return all(coords < world_half) && all(coords >= -world_half);
 }
 
 @compute
@@ -59,6 +99,12 @@ fn main(@builtin(global_invocation_id)id: vec3<u32>) {
         return;
     }
 
+    let rng_state = id.x + id.y * 1099087573;
+    rand_init(rng_state);
+
+    //textureStore(output, vec2<i32>(id.xy), vec4<f32>(rand()));
+    //return;
+
     let uv = vec2<f32>(id.xy) / vec2<f32>(size);
     let uv_centered = uv * 2.0 - 1.0;
 
@@ -69,16 +115,31 @@ fn main(@builtin(global_invocation_id)id: vec3<u32>) {
     let camera_pos: vec3<f32> = camera.position.xyz;
     let direction = vec3<f32>(uv_centered.x * aspect, -uv_centered.y, -focal_length);
 
-    var ray = Ray(camera_pos, mat3x3<f32>(camera.rotation[0].xyz, camera.rotation[1].xyz, camera.rotation[2].xyz) * direction);
-    let color = ray_color(ray);
-    textureStore(output, vec2<i32>(id.xy), color);
+    var ray = Ray(camera_pos, normalize(mat3x3<f32>(camera.rotation[0].xyz, camera.rotation[1].xyz, camera.rotation[2].xyz) * direction));
+    var current_ray = ray;
+    var in_light = vec4<f32>(0.0);
+    var color = vec4<f32>(1.0);
+    for(var i = 0; i < 4; i++) {
+        let info = trace_ray(current_ray);
+
+        if info.t == INFINITY {
+            in_light += sky(current_ray) * color;
+            break;
+        }
+
+        color *= 0.5 * vec4<f32>(info.hit_normal + 1, 0);
+        current_ray.direction = rand_on_hemisphere(info.hit_normal);
+        current_ray.origin = info.hit_point + info.hit_normal * 1e-3;
+    }
+    //let color = ray_color(trace_ray(ray), ray);
+    textureStore(output, vec2<i32>(id.xy), in_light);
 }
 
-fn ray_color(ray: Ray) -> vec4<f32> {
+fn trace_ray(ray: Ray) -> HitInfo {
     let world_half = vec3<f32>(32, 1, 32) * vec3<f32>(CHUNK_SIZE) * VOXEL_SIZE / 2;
     let world_hit = ray_aabb(-world_half, world_half, ray);
     if world_hit.t == INFINITY {
-        return sky(ray);
+        return HitInfo(vec3<f32>(0.0), vec3<f32>(0.0), INFINITY, false);
     }
 
     // either the first point where the ray hits if we are outside of the world or the brick we are in if we are inside
@@ -91,11 +152,12 @@ fn ray_color(ray: Ray) -> vec4<f32> {
 
     let step = vec3<i32>(sign(ray.direction));
     let inv_dir = select(vec3<f32>(INFINITY), 1 / ray.direction, step != vec3<i32>(0));
-    let t_delta = abs(inv_dir);
+    let t_delta = abs(inv_dir) * VOXEL_SIZE;
     let cb = select(vec3<f32>(current_brick), vec3<f32>(current_brick) + 1, ray.direction > vec3<f32>(0));
-    var t_max = (cb - grid_pos) * inv_dir;
+    var t_max = t + (cb - grid_pos) * inv_dir * VOXEL_SIZE;
 
     var normal = world_hit.hit_normal;
+    var t_current = t;
 
     loop {
         // ray stepped out of loaded chunks, no point to march ray anymore
@@ -105,22 +167,28 @@ fn ray_color(ray: Ray) -> vec4<f32> {
 
         let brick = get_global_brick(current_brick);
         if brick.empty == 0 {
-            return 0.5 * vec4(normal + 1, 0);
+            return HitInfo(ray.origin + ray.direction * t_current, normal, t_current, true);
         }
 
         if (t_max.x < t_max.y && t_max.x < t_max.z) {
+            t_current = t_max.x;
+
             current_brick.x += step.x;
             t_max.x += t_delta.x;
 
             normal = vec3<f32>(0);
             normal.x = -f32(step.x);
         } else if (t_max.y < t_max.z) {
+            t_current = t_max.y;
+
             current_brick.y += step.y;
             t_max.y += t_delta.y;
 
             normal = vec3<f32>(0);
             normal.y = -f32(step.y);
         } else {
+            t_current = t_max.z;
+
             current_brick.z += step.z;
             t_max.z += t_delta.z;
 
@@ -129,7 +197,7 @@ fn ray_color(ray: Ray) -> vec4<f32> {
         }
     }
 
-    return sky(ray);
+    return HitInfo(vec3<f32>(0.0), vec3<f32>(0.0), INFINITY, false);
 }
 
 fn sky(ray: Ray) -> vec4<f32> {
