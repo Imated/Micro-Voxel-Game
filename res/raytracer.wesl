@@ -86,13 +86,14 @@ fn ray_color(ray: Ray) -> vec4<f32> {
     let t = select(world_hit.t + 0.0001, 0.0, inside_world);
     let start_pos = ray.origin + ray.direction * t;
 
-    var current_brick = vec3<i32>(floor(start_pos / VOXEL_SIZE));
+    let grid_pos = start_pos / VOXEL_SIZE;
+    var current_brick = vec3<i32>(floor(grid_pos));
 
     let step = vec3<i32>(sign(ray.direction));
-    let t_delta = select(vec3<f32>(INFINITY), VOXEL_SIZE * abs(1 / ray.direction), step != vec3<i32>(0));
-    let cell_min = vec3<f32>(current_brick) * VOXEL_SIZE;
-    let cb = select(cell_min, cell_min + vec3<f32>(VOXEL_SIZE), ray.direction > vec3<f32>(0));
-    var t_max = select(vec3(INFINITY), (cb - start_pos) / ray.direction, step != vec3<i32>(0));
+    let inv_dir = select(vec3<f32>(INFINITY), 1 / ray.direction, step != vec3<i32>(0));
+    let t_delta = abs(inv_dir);
+    let cb = select(vec3<f32>(current_brick), vec3<f32>(current_brick) + 1, ray.direction > vec3<f32>(0));
+    var t_max = (cb - grid_pos) * inv_dir;
 
     var normal = world_hit.hit_normal;
 
