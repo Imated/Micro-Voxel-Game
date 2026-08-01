@@ -1,10 +1,10 @@
-use crate::AppRunner::Running;
 use crate::app::App;
+use crate::AppRunner::Running;
 use glam::Vec2;
 use std::num::NonZeroU32;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tracing::{Level, info};
+use tracing::{info, Level};
 use tracing_subscriber::EnvFilter;
 use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalSize;
@@ -19,6 +19,7 @@ mod blit;
 pub mod buffer;
 pub mod camera;
 pub mod display;
+pub mod gui_renderer;
 pub mod render_context;
 pub mod renderer;
 pub mod world;
@@ -72,6 +73,8 @@ impl ApplicationHandler for AppRunner {
             return;
         };
 
+        app.on_window_event(&event);
+
         match event {
             WindowEvent::RedrawRequested => {
                 let prev = Instant::now();
@@ -112,12 +115,12 @@ impl ApplicationHandler for AppRunner {
             }
             WindowEvent::KeyboardInput {
                 event:
-                    KeyEvent {
-                        physical_key: Code(code),
-                        state,
-                        repeat: false,
-                        ..
-                    },
+                KeyEvent {
+                    physical_key: Code(code),
+                    state,
+                    repeat: false,
+                    ..
+                },
                 ..
             } => match (code, state.is_pressed()) {
                 (KeyCode::Escape, true) => event_loop.exit(),

@@ -114,7 +114,7 @@ impl Camera {
             (self.move_right as i8 - self.move_left as i8) as f32,
             (self.move_forward as i8 - self.move_back as i8) as f32,
         )
-        .normalize_or_zero();
+            .normalize_or_zero();
 
         let rotation = self.calc_matrix();
         let forward = -rotation.z_axis.truncate().with_y(0.0).normalize_or_zero();

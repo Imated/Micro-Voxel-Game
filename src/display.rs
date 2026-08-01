@@ -3,7 +3,7 @@ use std::num::NonZeroU32;
 use std::sync::Arc;
 use wgpu::wgt::CommandEncoderDescriptor;
 use wgpu::{
-    CommandEncoder, CurrentSurfaceTexture, PresentMode, Surface, SurfaceColorSpace,
+    CommandEncoder, CurrentSurfaceTexture, PresentMode, Surface,
     SurfaceConfiguration, SurfaceTexture, TextureFormat, TextureUsages, TextureView,
     TextureViewDescriptor,
 };
@@ -37,7 +37,6 @@ impl Display {
             alpha_mode: surface_caps.alpha_modes[0],
             view_formats: vec![],
             desired_maximum_frame_latency: 2,
-            color_space: SurfaceColorSpace::Auto,
         };
 
         Ok(Self {

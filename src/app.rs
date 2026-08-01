@@ -1,6 +1,7 @@
 use crate::blit::Blitter;
 use crate::camera::Camera;
 use crate::display::Display;
+use crate::gui_renderer::GuiRenderer;
 use crate::render_context::RenderContext;
 use crate::renderer::{RenderTexture, Renderer};
 use crate::world::world_renderer::WorldRenderer;
@@ -8,6 +9,7 @@ use glam::{Vec2, Vec3};
 use std::num::NonZeroU32;
 use std::sync::Arc;
 use std::time::Duration;
+use winit::event::WindowEvent;
 use winit::keyboard::KeyCode;
 use winit::window::{Fullscreen, Window};
 
@@ -20,6 +22,7 @@ pub struct App {
     blitter: Blitter,
     output: RenderTexture,
     world_renderer: WorldRenderer,
+    gui_renderer: GuiRenderer,
 }
 
 impl App {
@@ -35,6 +38,7 @@ impl App {
         let world_renderer = WorldRenderer::new(&context);
         let renderer = Renderer::new(&context, &output, &camera, &world_renderer);
         let blitter = Blitter::new(&context, &output, display.surface_format());
+        let gui_renderer = GuiRenderer::new(&context, window.clone(), display.surface_format());
 
         Self {
             window,
@@ -45,6 +49,7 @@ impl App {
             blitter,
             output,
             world_renderer,
+            gui_renderer,
         }
     }
 
@@ -59,9 +64,20 @@ impl App {
             .raytrace_pass(&mut frame, &self.output, &self.camera, &self.world_renderer);
         self.blitter.blit(&mut frame);
 
+        // UI
+        {
+            self.gui_renderer.begin_frame();
+
+            egui::Window::new("eee").show(self.gui_renderer.egui(), |ui| {
+                ui.label("eeea");
+            });
+
+            self.gui_renderer.end_frame(&mut frame, &self.context);
+        }
+
         self.window.pre_present_notify();
         self.context.queue.submit([frame.encoder.finish()]);
-        self.context.queue.present(frame.surface_texture);
+        frame.surface_texture.present();
     }
 
     pub fn on_resize(&mut self, width: NonZeroU32, height: NonZeroU32) {
@@ -90,5 +106,9 @@ impl App {
 
     pub fn on_mouse_moved(&mut self, delta: Vec2) {
         self.camera.process_mouse_movement(delta);
+    }
+
+    pub fn on_window_event(&mut self, event: &WindowEvent) {
+        self.gui_renderer.on_event(event);
     }
 }

@@ -26,7 +26,6 @@ impl RenderContext {
                 power_preference: PowerPreference::HighPerformance,
                 force_fallback_adapter: false,
                 compatible_surface: None,
-                apply_limit_buckets: true,
             })
             .await?;
 
