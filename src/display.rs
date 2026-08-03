@@ -3,9 +3,8 @@ use std::num::NonZeroU32;
 use std::sync::Arc;
 use wgpu::wgt::CommandEncoderDescriptor;
 use wgpu::{
-    CommandEncoder, CurrentSurfaceTexture, PresentMode, Surface,
-    SurfaceConfiguration, SurfaceTexture, TextureFormat, TextureUsages, TextureView,
-    TextureViewDescriptor,
+    CommandEncoder, CurrentSurfaceTexture, PresentMode, Surface, SurfaceConfiguration,
+    SurfaceTexture, TextureFormat, TextureUsages, TextureView, TextureViewDescriptor,
 };
 use winit::window::Window;
 

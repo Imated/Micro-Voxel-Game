@@ -1,6 +1,7 @@
 use crate::camera::Camera;
 use crate::display::Frame;
 use crate::render_context::RenderContext;
+use crate::world::world_renderer::WorldRenderer;
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
     BindGroupLayoutEntry, BindingResource, BindingType, ComputePassDescriptor, ComputePipeline,
@@ -9,7 +10,6 @@ use wgpu::{
     TextureFormat, TextureUsages, TextureView, TextureViewDescriptor, TextureViewDimension,
     include_wgsl,
 };
-use crate::world::world_renderer::WorldRenderer;
 
 pub struct RenderTexture {
     pub output: Texture,
@@ -56,7 +56,12 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    pub fn new(context: &RenderContext, output: &RenderTexture, camera: &Camera, world_renderer: &WorldRenderer) -> Self {
+    pub fn new(
+        context: &RenderContext,
+        output: &RenderTexture,
+        camera: &Camera,
+        world_renderer: &WorldRenderer,
+    ) -> Self {
         let bind_group_layout =
             context
                 .device
@@ -83,7 +88,11 @@ impl Renderer {
             .device
             .create_pipeline_layout(&PipelineLayoutDescriptor {
                 label: Some("Raytracing Pipeline Layout"),
-                bind_group_layouts: &[Some(&bind_group_layout), Some(&camera.get_layout()), Some(world_renderer.layout())],
+                bind_group_layouts: &[
+                    Some(&bind_group_layout),
+                    Some(&camera.get_layout()),
+                    Some(world_renderer.layout()),
+                ],
                 immediate_size: 0,
             });
 
@@ -109,7 +118,13 @@ impl Renderer {
         self.bind_group = Self::create_bind_group(context, &self.bind_group_layout, output_view);
     }
 
-    pub fn raytrace_pass(&self, frame: &mut Frame, output: &RenderTexture, camera: &Camera, world_renderer: &WorldRenderer) {
+    pub fn raytrace_pass(
+        &self,
+        frame: &mut Frame,
+        output: &RenderTexture,
+        camera: &Camera,
+        world_renderer: &WorldRenderer,
+    ) {
         let mut compute_pass = frame.encoder.begin_compute_pass(&ComputePassDescriptor {
             label: Some("Raytracer Compute Pass"),
             timestamp_writes: None,

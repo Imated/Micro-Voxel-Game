@@ -9,9 +9,9 @@ use glam::{Vec2, Vec3};
 use std::num::NonZeroU32;
 use std::sync::Arc;
 use std::time::Duration;
-use winit::event::WindowEvent;
+use winit::event::{ElementState, MouseButton, WindowEvent};
 use winit::keyboard::KeyCode;
-use winit::window::{Fullscreen, Window};
+use winit::window::{CursorGrabMode, Fullscreen, Window};
 
 pub struct App {
     window: Arc<Window>,
@@ -65,15 +65,12 @@ impl App {
         self.blitter.blit(&mut frame);
 
         // UI
-        {
-            self.gui_renderer.begin_frame();
-
-            egui::Window::new("eee").show(self.gui_renderer.egui(), |ui| {
+        self.gui_renderer.run(&mut frame, &self.context, |ui| {
+            egui::Window::new("eee").show(ui.ctx(), |ui| {
                 ui.label("eeea");
             });
-
-            self.gui_renderer.end_frame(&mut frame, &self.context);
-        }
+        });
+        self.gui_renderer.egui().request_repaint();
 
         self.window.pre_present_notify();
         self.context.queue.submit([frame.encoder.finish()]);
@@ -89,6 +86,8 @@ impl App {
     }
 
     pub fn on_key_event(&mut self, key_code: KeyCode, is_pressed: bool) {
+        self.camera.process_key_event(key_code, is_pressed);
+
         match (key_code, is_pressed) {
             (KeyCode::F11, true) => {
                 if self.window.fullscreen().is_some() {
@@ -98,9 +97,13 @@ impl App {
                         .set_fullscreen(Some(Fullscreen::Borderless(None)));
                 }
             }
-            _ => {
-                self.camera.process_key_event(key_code, is_pressed);
+            (KeyCode::Escape, true) => {
+                self.window
+                    .set_cursor_grab(CursorGrabMode::None)
+                    .expect("theres like no way ts will fail and if it does i quit rust");
+                self.window.set_cursor_visible(true);
             }
+            _ => {}
         }
     }
 
@@ -109,6 +112,22 @@ impl App {
     }
 
     pub fn on_window_event(&mut self, event: &WindowEvent) {
-        self.gui_renderer.on_event(event);
+        let response = self.gui_renderer.on_event(event);
+        if response.consumed {
+            return;
+        }
+
+        if let WindowEvent::MouseInput {
+            state: ElementState::Pressed,
+            button: MouseButton::Left,
+            ..
+        } = event
+        {
+            self.window
+                .set_cursor_grab(CursorGrabMode::Locked)
+                .or_else(|_| self.window.set_cursor_grab(CursorGrabMode::Confined))
+                .expect("theres like no way ts will fail and if it does i quit rust");
+            self.window.set_cursor_visible(false);
+        }
     }
 }

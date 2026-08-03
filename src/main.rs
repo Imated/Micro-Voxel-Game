@@ -1,18 +1,17 @@
-use crate::app::App;
 use crate::AppRunner::Running;
+use crate::app::App;
 use glam::Vec2;
 use std::num::NonZeroU32;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tracing::{info, Level};
+use tracing::{Level, info};
 use tracing_subscriber::EnvFilter;
 use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalSize;
 use winit::event::{DeviceEvent, DeviceId, KeyEvent, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
-use winit::keyboard::KeyCode;
 use winit::keyboard::PhysicalKey::Code;
-use winit::window::{CursorGrabMode, Window, WindowAttributes, WindowId};
+use winit::window::{Window, WindowAttributes, WindowId};
 
 mod app;
 mod blit;
@@ -102,32 +101,18 @@ impl ApplicationHandler for AppRunner {
 
                 app.on_resize(width, height);
             }
-            WindowEvent::Focused(focused) => {
-                if !focused {
-                    return;
-                }
-
-                window
-                    .set_cursor_grab(CursorGrabMode::Locked)
-                    .or_else(|_| window.set_cursor_grab(CursorGrabMode::Confined))
-                    .expect("Failed to grab cursor");
-                window.set_cursor_visible(false);
-            }
             WindowEvent::KeyboardInput {
                 event:
-                KeyEvent {
-                    physical_key: Code(code),
-                    state,
-                    repeat: false,
-                    ..
-                },
+                    KeyEvent {
+                        physical_key: Code(code),
+                        state,
+                        repeat: false,
+                        ..
+                    },
                 ..
-            } => match (code, state.is_pressed()) {
-                (KeyCode::Escape, true) => event_loop.exit(),
-                (code, is_pressed) => {
-                    app.on_key_event(code, is_pressed);
-                }
-            },
+            } => {
+                app.on_key_event(code, state.is_pressed());
+            }
 
             WindowEvent::CloseRequested => {
                 event_loop.exit();

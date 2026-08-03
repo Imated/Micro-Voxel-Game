@@ -2,9 +2,12 @@ use std::sync::Arc;
 
 use crate::display::Frame;
 use crate::render_context::RenderContext;
-use egui::Context;
+use egui::{Context, Ui};
 use egui_wgpu::{Renderer, RendererOptions, ScreenDescriptor};
-use wgpu::{LoadOp, Operations, RenderPassColorAttachment, RenderPassDescriptor, StoreOp, TextureFormat};
+use egui_winit::EventResponse;
+use wgpu::{
+    LoadOp, Operations, RenderPassColorAttachment, RenderPassDescriptor, StoreOp, TextureFormat,
+};
 use winit::{event::WindowEvent, window::Window};
 
 pub struct GuiRenderer {
@@ -35,31 +38,42 @@ impl GuiRenderer {
         }
     }
 
-    pub fn on_event(&mut self, event: &WindowEvent) {
-        let _ = self.state.on_window_event(&self.window, event);
+    pub fn on_event(&mut self, event: &WindowEvent) -> EventResponse {
+        self.state.on_window_event(&self.window, event)
     }
 
-    pub fn begin_frame(&mut self) {
+    pub fn run(&mut self, frame: &mut Frame, context: &RenderContext, ui: impl FnMut(&mut Ui)) {
         let raw_input = self.state.take_egui_input(&self.window);
-        self.state.egui_ctx().begin_pass(raw_input);
-    }
+        let full_output = self.state.egui_ctx().run_ui(raw_input, ui);
 
-    pub fn end_frame(&mut self, frame: &mut Frame, context: &RenderContext) {
         let screen_descriptor = ScreenDescriptor {
-            size_in_pixels: [self.window.inner_size().width, self.window.inner_size().height],
+            size_in_pixels: [
+                self.window.inner_size().width,
+                self.window.inner_size().height,
+            ],
             pixels_per_point: self.window.scale_factor() as f32,
         };
 
-        self.egui().set_pixels_per_point(screen_descriptor.pixels_per_point);
+        self.egui()
+            .set_pixels_per_point(screen_descriptor.pixels_per_point);
 
-        let full_output = self.egui().end_pass();
-        self.state.handle_platform_output(&self.window, full_output.platform_output);
+        self.state
+            .handle_platform_output(&self.window, full_output.platform_output);
 
-        let tris = self.egui().tessellate(full_output.shapes, full_output.pixels_per_point);
+        let tris = self
+            .egui()
+            .tessellate(full_output.shapes, full_output.pixels_per_point);
         for (id, image_delta) in &full_output.textures_delta.set {
-            self.renderer.update_texture(&context.device, &context.queue, *id, image_delta);
+            self.renderer
+                .update_texture(&context.device, &context.queue, *id, image_delta);
         }
-        self.renderer.update_buffers(&context.device, &context.queue, &mut frame.encoder, &tris, &screen_descriptor);
+        self.renderer.update_buffers(
+            &context.device,
+            &context.queue,
+            &mut frame.encoder,
+            &tris,
+            &screen_descriptor,
+        );
 
         let render_pass = frame.encoder.begin_render_pass(&RenderPassDescriptor {
             label: Some("eGUI Pass"),
@@ -78,7 +92,11 @@ impl GuiRenderer {
             multiview_mask: None,
         });
 
-        self.renderer.render(&mut render_pass.forget_lifetime(), &tris, &screen_descriptor);
+        self.renderer.render(
+            &mut render_pass.forget_lifetime(),
+            &tris,
+            &screen_descriptor,
+        );
         for x in &full_output.textures_delta.free {
             self.renderer.free_texture(x);
         }
