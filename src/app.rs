@@ -90,12 +90,13 @@ impl App {
                 .collapsible(false)
                 .title_bar(false)
                 .show(ui, |ui| {
-                    ui.label(RichText::new(format!("FPS: {}", 1.0 / delta_time.as_secs_f32())).heading().strong().monospace());
-                    ui.label(RichText::new(format!("Frame time: {:?}ms", delta_time)).heading().strong().monospace());
-                    ui.separator();
-
                     let total: f32 = self.profiled_passes.iter().map(|(_, t)| *t as f32).sum();
                     let bar_width = 240.0;
+
+                    ui.label(RichText::new(format!("FPS: {}", 1.0 / delta_time.as_secs_f32())).heading().strong().monospace());
+                    ui.label(RichText::new(format!("GPU FPS: {}", 1.0 / (total / 1000.0))).heading().strong().monospace());
+                    ui.label(RichText::new(format!("Frame time: {:?}ms", delta_time.as_secs_f32() * 1000.0)).heading().strong().monospace());
+                    ui.separator();
 
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing.x = 2.0;
