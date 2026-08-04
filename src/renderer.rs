@@ -3,12 +3,12 @@ use crate::display::Frame;
 use crate::render_context::RenderContext;
 use crate::world::world_renderer::WorldRenderer;
 use wgpu::{
-    BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
-    BindGroupLayoutEntry, BindingResource, BindingType, ComputePassDescriptor, ComputePipeline,
-    ComputePipelineDescriptor, Extent3d, PipelineCompilationOptions, PipelineLayoutDescriptor,
-    ShaderStages, StorageTextureAccess, Texture, TextureDescriptor, TextureDimension,
-    TextureFormat, TextureUsages, TextureView, TextureViewDescriptor, TextureViewDimension,
-    include_wgsl,
+    include_wgsl, BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout,
+    BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource, BindingType, ComputePassDescriptor,
+    ComputePipeline, ComputePipelineDescriptor, Extent3d, PipelineCompilationOptions,
+    PipelineLayoutDescriptor, ShaderStages, StorageTextureAccess, Texture, TextureDescriptor,
+    TextureDimension, TextureFormat, TextureUsages, TextureView, TextureViewDescriptor,
+    TextureViewDimension,
 };
 
 pub struct RenderTexture {
@@ -130,11 +130,13 @@ impl Renderer {
             timestamp_writes: None,
         });
 
+        let mut compute_pass = frame.profiler.scope("Raytracing", &mut compute_pass);
+
         compute_pass.set_pipeline(&self.pipeline);
         compute_pass.set_bind_group(0, &self.bind_group, &[]);
         compute_pass.set_bind_group(1, camera.get_bind_group(), &[]);
         compute_pass.set_bind_group(2, world_renderer.bind_group(), &[]);
-        compute_pass.dispatch_workgroups(output.width.div_ceil(16), output.height.div_ceil(16), 1)
+        compute_pass.dispatch_workgroups(output.width.div_ceil(16), output.height.div_ceil(16), 1);
     }
 
     fn create_bind_group(

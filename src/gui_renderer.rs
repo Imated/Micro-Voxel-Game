@@ -75,25 +75,30 @@ impl GuiRenderer {
             &screen_descriptor,
         );
 
-        let render_pass = frame.encoder.begin_render_pass(&RenderPassDescriptor {
-            label: Some("eGUI Pass"),
-            color_attachments: &[Some(RenderPassColorAttachment {
-                view: &frame.surface_view,
-                depth_slice: None,
-                resolve_target: None,
-                ops: Operations {
-                    load: LoadOp::Load,
-                    store: StoreOp::Store,
-                },
-            })],
-            depth_stencil_attachment: None,
-            timestamp_writes: None,
-            occlusion_query_set: None,
-            multiview_mask: None,
-        });
+        let mut render_pass = frame
+            .encoder
+            .begin_render_pass(&RenderPassDescriptor {
+                label: Some("eGUI Pass"),
+                color_attachments: &[Some(RenderPassColorAttachment {
+                    view: &frame.surface_view,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: Operations {
+                        load: LoadOp::Load,
+                        store: StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            })
+            .forget_lifetime();
+
+        let mut render_pass = frame.profiler.scope("UI", &mut render_pass);
 
         self.renderer.render(
-            &mut render_pass.forget_lifetime(),
+            &mut render_pass,
             &tris,
             &screen_descriptor,
         );
