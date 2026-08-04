@@ -5,7 +5,7 @@ use crate::gui_renderer::GuiRenderer;
 use crate::render_context::RenderContext;
 use crate::renderer::{RenderTexture, Renderer};
 use crate::world::world_renderer::WorldRenderer;
-use egui::{vec2, Align2, Color32, FontId, RichText, Sense};
+use egui::{Align2, Color32, FontId, RichText, Sense, vec2};
 use glam::{Vec2, Vec3};
 use std::num::NonZeroU32;
 use std::sync::Arc;
@@ -44,11 +44,15 @@ impl App {
         let renderer = Renderer::new(&context, &output, &camera, &world_renderer);
         let blitter = Blitter::new(&context, &output, display.surface_format());
         let gui_renderer = GuiRenderer::new(&context, window.clone(), display.surface_format());
-        let profiler = GpuProfiler::new(&context.device, GpuProfilerSettings {
-            enable_timer_queries: true,
-            enable_debug_groups: false,
-            max_num_pending_frames: 2,
-        }).expect("Failed to crate GPU profiler.");
+        let profiler = GpuProfiler::new(
+            &context.device,
+            GpuProfilerSettings {
+                enable_timer_queries: true,
+                enable_debug_groups: false,
+                max_num_pending_frames: 2,
+            },
+        )
+        .expect("Failed to crate GPU profiler.");
 
         Self {
             window,
@@ -61,11 +65,7 @@ impl App {
             world_renderer,
             gui_renderer,
             profiler,
-            profiled_passes: [
-                ("Raytracing", 0.0),
-                ("Blit", 0.0),
-                ("UI", 0.0),
-            ],
+            profiled_passes: [("Raytracing", 0.0), ("Blit", 0.0), ("UI", 0.0)],
         }
     }
 
@@ -93,9 +93,27 @@ impl App {
                     let total: f32 = self.profiled_passes.iter().map(|(_, t)| *t as f32).sum();
                     let bar_width = 240.0;
 
-                    ui.label(RichText::new(format!("FPS: {}", 1.0 / delta_time.as_secs_f32())).heading().strong().monospace());
-                    ui.label(RichText::new(format!("GPU FPS: {}", 1.0 / (total / 1000.0))).heading().strong().monospace());
-                    ui.label(RichText::new(format!("Frame time: {:?}ms", delta_time.as_secs_f32() * 1000.0)).heading().strong().monospace());
+                    ui.label(
+                        RichText::new(format!("FPS: {}", 1.0 / delta_time.as_secs_f32()))
+                            .heading()
+                            .strong()
+                            .monospace(),
+                    );
+                    ui.label(
+                        RichText::new(format!("GPU FPS: {}", 1.0 / (total / 1000.0)))
+                            .heading()
+                            .strong()
+                            .monospace(),
+                    );
+                    ui.label(
+                        RichText::new(format!(
+                            "Frame time: {:?}ms",
+                            delta_time.as_secs_f32() * 1000.0
+                        ))
+                        .heading()
+                        .strong()
+                        .monospace(),
+                    );
                     ui.separator();
 
                     ui.horizontal(|ui| {
@@ -107,11 +125,10 @@ impl App {
                                 0.0
                             };
                             let box_width = (bar_width * fraction).max(40.0);
-                            let (rect, _) = ui.allocate_exact_size(
-                                vec2(box_width, 40.0),
-                                Sense::empty(),
-                            );
-                            ui.painter().rect_filled(rect, 3.0, Color32::from_rgb(220, 90, 90));
+                            let (rect, _) =
+                                ui.allocate_exact_size(vec2(box_width, 40.0), Sense::empty());
+                            ui.painter()
+                                .rect_filled(rect, 3.0, Color32::from_rgb(220, 90, 90));
                             ui.painter().text(
                                 rect.center() - vec2(0.0, 7.0),
                                 Align2::CENTER_CENTER,
@@ -146,7 +163,10 @@ impl App {
 
         self.profiler.end_frame().unwrap();
 
-        if let Some(profiling_data) = self.profiler.process_finished_frame(self.context.queue.get_timestamp_period()) {
+        if let Some(profiling_data) = self
+            .profiler
+            .process_finished_frame(self.context.queue.get_timestamp_period())
+        {
             for (i, profiling_pass) in profiling_data.iter().enumerate() {
                 let time = profiling_pass.time.as_ref().unwrap();
                 self.profiled_passes[i].1 = (time.end - time.start) * 1000.0;

@@ -3,12 +3,12 @@ use crate::display::Frame;
 use crate::render_context::RenderContext;
 use crate::world::world_renderer::WorldRenderer;
 use wgpu::{
-    include_wgsl, BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout,
-    BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource, BindingType, ComputePassDescriptor,
-    ComputePipeline, ComputePipelineDescriptor, Extent3d, PipelineCompilationOptions,
-    PipelineLayoutDescriptor, ShaderStages, StorageTextureAccess, Texture, TextureDescriptor,
-    TextureDimension, TextureFormat, TextureUsages, TextureView, TextureViewDescriptor,
-    TextureViewDimension,
+    BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
+    BindGroupLayoutEntry, BindingResource, BindingType, ComputePassDescriptor, ComputePipeline,
+    ComputePipelineDescriptor, Extent3d, PipelineCompilationOptions, PipelineLayoutDescriptor,
+    ShaderStages, StorageTextureAccess, Texture, TextureDescriptor, TextureDimension,
+    TextureFormat, TextureUsages, TextureView, TextureViewDescriptor, TextureViewDimension,
+    include_wgsl,
 };
 
 pub struct RenderTexture {

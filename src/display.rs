@@ -58,7 +58,11 @@ impl Display {
         self.is_surface_configured = true;
     }
 
-    pub fn acquire_frame<'a>(&self, context: &RenderContext, profiler: &'a GpuProfiler) -> Option<Frame<'a>> {
+    pub fn acquire_frame<'a>(
+        &self,
+        context: &RenderContext,
+        profiler: &'a GpuProfiler,
+    ) -> Option<Frame<'a>> {
         if !self.is_surface_configured {
             return None;
         }

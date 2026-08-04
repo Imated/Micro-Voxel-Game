@@ -97,11 +97,8 @@ impl GuiRenderer {
 
         let mut render_pass = frame.profiler.scope("UI", &mut render_pass);
 
-        self.renderer.render(
-            &mut render_pass,
-            &tris,
-            &screen_descriptor,
-        );
+        self.renderer
+            .render(&mut render_pass, &tris, &screen_descriptor);
         for x in &full_output.textures_delta.free {
             self.renderer.free_texture(x);
         }

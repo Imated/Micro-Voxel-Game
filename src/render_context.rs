@@ -32,7 +32,9 @@ impl RenderContext {
         let (device, queue) = adapter
             .request_device(&DeviceDescriptor {
                 label: None,
-                required_features: Features::TIMESTAMP_QUERY | Features::TIMESTAMP_QUERY_INSIDE_PASSES | Features::TIMESTAMP_QUERY_INSIDE_ENCODERS,
+                required_features: Features::TIMESTAMP_QUERY
+                    | Features::TIMESTAMP_QUERY_INSIDE_PASSES
+                    | Features::TIMESTAMP_QUERY_INSIDE_ENCODERS,
                 experimental_features: ExperimentalFeatures::disabled(),
                 required_limits: Limits::default(),
                 memory_hints: MemoryHints::Performance,

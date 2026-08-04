@@ -19,7 +19,7 @@ fn rand_init(seed: u32) {
     c = seed;
     d = seed;
 
-    for(var i = 0; i < 20; i++) {
+    for (var i = 0; i < 4; i++) {
         rand();
     }
 }
@@ -29,12 +29,27 @@ fn rotate(x: u32, k: u32) -> u32 {
 }
 
 fn rand_unit_vector() -> vec3<f32> {
-    return normalize(vec3<f32>(rand() * 2 - 1, rand() * 2- 1, rand() * 2 - 1));
+    return normalize(vec3<f32>(rand() * 2 - 1, rand() * 2 - 1, rand() * 2 - 1));
 }
 
 fn rand_on_hemisphere(normal: vec3<f32>) -> vec3<f32> {
-    let dir = rand_unit_vector();
-    return dir * sign(dot(dir, normal));
+    let u1 = rand();
+    let u2 = rand();
+
+    let r = sqrt(u1);
+    let theta = 2.0 * 3.14159265 * u2;
+
+    let x = r * cos(theta);
+    let y = r * sin(theta);
+    let z = sqrt(1.0 - u1);
+
+    if abs(normal.x) > 0.5 {
+        return vec3<f32>(sign(normal.x) * z, x, y);
+    } else if abs(normal.y) > 0.5 {
+        return vec3<f32>(x, sign(normal.y) * z, y);
+    } else {
+        return vec3<f32>(x, y, sign(normal.z) * z);
+    }
 }
 
 struct Ray {
@@ -80,9 +95,8 @@ fn get_global_brick(coords: vec3<i32>) -> Brick {
     let offsetted_coords = coords + vec3<i32>(32, 1, 32) * vec3<i32>(i32(CHUNK_SIZE)) / 2;
     let chunk_coord = offsetted_coords / vec3<i32>(i32(CHUNK_SIZE));
     let local_coord = offsetted_coords % vec3<i32>(i32(CHUNK_SIZE));
-    let chunk = chunks[chunk_coord.x][chunk_coord.y][chunk_coord.z];
 
-    return chunk.bricks[local_coord.x][local_coord.y][local_coord.z];
+    return chunks[chunk_coord.x][chunk_coord.y][chunk_coord.z].bricks[local_coord.x][local_coord.y][local_coord.z];
 }
 
 fn is_brick_in_bounds(coords: vec3<i32>) -> bool {
@@ -119,7 +133,7 @@ fn main(@builtin(global_invocation_id)id: vec3<u32>) {
     var current_ray = ray;
     var in_light = vec4<f32>(0.0);
     var color = vec4<f32>(1.0);
-    for(var i = 0; i < 4; i++) {
+    for (var i = 0; i < 4; i++) {
         let info = trace_ray(current_ray);
 
         if info.t == INFINITY {
@@ -161,7 +175,7 @@ fn trace_ray(ray: Ray) -> HitInfo {
 
     loop {
         // ray stepped out of loaded chunks, no point to march ray anymore
-        if (!is_brick_in_bounds(current_brick)) {
+        if !is_brick_in_bounds(current_brick) {
             break;
         }
 
@@ -170,7 +184,7 @@ fn trace_ray(ray: Ray) -> HitInfo {
             return HitInfo(ray.origin + ray.direction * t_current, normal, t_current, true);
         }
 
-        if (t_max.x < t_max.y && t_max.x < t_max.z) {
+        if t_max.x < t_max.y && t_max.x < t_max.z {
             t_current = t_max.x;
 
             current_brick.x += step.x;
@@ -178,7 +192,7 @@ fn trace_ray(ray: Ray) -> HitInfo {
 
             normal = vec3<f32>(0);
             normal.x = -f32(step.x);
-        } else if (t_max.y < t_max.z) {
+        } else if t_max.y < t_max.z {
             t_current = t_max.y;
 
             current_brick.y += step.y;

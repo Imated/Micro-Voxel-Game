@@ -2,14 +2,14 @@ use crate::display::Frame;
 use crate::render_context::RenderContext;
 use crate::renderer::RenderTexture;
 use wgpu::{
-    include_wgsl, BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout,
-    BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource, BindingType, BlendState, ColorTargetState,
-    ColorWrites, FilterMode, FragmentState, FrontFace, LoadOp, LoadOpDontCare, MultisampleState,
-    Operations, PipelineCompilationOptions, PipelineLayoutDescriptor, PolygonMode,
-    PrimitiveState, PrimitiveTopology, RenderPassColorAttachment, RenderPassDescriptor,
-    RenderPipeline, RenderPipelineDescriptor, Sampler, SamplerBindingType, SamplerDescriptor,
-    ShaderStages, StoreOp, TextureFormat, TextureSampleType, TextureView, TextureViewDimension,
-    VertexState,
+    BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
+    BindGroupLayoutEntry, BindingResource, BindingType, BlendState, ColorTargetState, ColorWrites,
+    FilterMode, FragmentState, FrontFace, LoadOp, LoadOpDontCare, MultisampleState, Operations,
+    PipelineCompilationOptions, PipelineLayoutDescriptor, PolygonMode, PrimitiveState,
+    PrimitiveTopology, RenderPassColorAttachment, RenderPassDescriptor, RenderPipeline,
+    RenderPipelineDescriptor, Sampler, SamplerBindingType, SamplerDescriptor, ShaderStages,
+    StoreOp, TextureFormat, TextureSampleType, TextureView, TextureViewDimension, VertexState,
+    include_wgsl,
 };
 
 pub struct Blitter {
