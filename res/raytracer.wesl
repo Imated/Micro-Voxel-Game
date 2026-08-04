@@ -91,13 +91,25 @@ var<uniform> camera: Camera;
 @group(2) @binding(0)
 var<storage, read> chunks: array<array<array<Chunk, 32>, 1>, 32>;
 
-fn get_global_brick(coords: vec3<i32>) -> Brick {
-    let offsetted_coords = coords + vec3<i32>(32, 1, 32) * vec3<i32>(i32(CHUNK_SIZE)) / 2;
+fn is_brick_empty(brick_coords: vec3<i32>) -> bool {
+    let offsetted_coords = brick_coords + vec3<i32>(32, 1, 32) * vec3<i32>(i32(CHUNK_SIZE)) / 2;
     let chunk_coord = offsetted_coords / vec3<i32>(i32(CHUNK_SIZE));
     let local_coord = offsetted_coords % vec3<i32>(i32(CHUNK_SIZE));
 
-    return chunks[chunk_coord.x][chunk_coord.y][chunk_coord.z].bricks[local_coord.x][local_coord.y][local_coord.z];
+    return chunks[chunk_coord.x][chunk_coord.y][chunk_coord.z]
+        .bricks[local_coord.x][local_coord.y][local_coord.z]
+        .empty != 0;
 }
+
+// fn get_voxel(brick_coords: vec3<i32>, voxel_local_coords: vec3<i32>) -> u32 {
+//     let offsetted_coords = brick_coords + vec3<i32>(32, 1, 32) * vec3<i32>(i32(CHUNK_SIZE)) / 2;
+//     let chunk_coord = offsetted_coords / vec3<i32>(i32(CHUNK_SIZE));
+//     let local_coord = offsetted_coords % vec3<i32>(i32(CHUNK_SIZE));
+
+//     return chunks[chunk_coord.x][chunk_coord.y][chunk_coord.z]
+//         .bricks[local_coord.x][local_coord.y][local_coord.z]
+//         .voxels[voxel_local_coords.x][voxel_local_coords.y][voxel_local_coords.z];
+// }
 
 fn is_brick_in_bounds(coords: vec3<i32>) -> bool {
     let world_half = vec3<i32>(32, 1, 32) * vec3<i32>(i32(CHUNK_SIZE)) / 2;
@@ -179,8 +191,7 @@ fn trace_ray(ray: Ray) -> HitInfo {
             break;
         }
 
-        let brick = get_global_brick(current_brick);
-        if brick.empty == 0 {
+        if !is_brick_empty(current_brick) {
             return HitInfo(ray.origin + ray.direction * t_current, normal, t_current, true);
         }
 

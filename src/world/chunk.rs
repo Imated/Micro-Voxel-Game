@@ -12,6 +12,7 @@ impl Chunk {
     pub fn new_from_full() -> Self {
         Self {
             bricks: [[[Brick {
+                //voxels: [[[true as u32; 8]; 8]; 8],
                 empty: false as u32,
             }; 8]; 8]; 8],
         }
