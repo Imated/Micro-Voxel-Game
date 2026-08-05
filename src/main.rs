@@ -113,7 +113,6 @@ impl ApplicationHandler for AppRunner {
             } => {
                 app.on_key_event(code, state.is_pressed());
             }
-
             WindowEvent::CloseRequested => {
                 event_loop.exit();
             }

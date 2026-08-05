@@ -1,0 +1,9 @@
+{
+  "lsp": {
+    "wgsl_analyzer": {
+      "initialization_options": {
+        "linkedProjects": ["./wesl.toml"]
+      }
+    }
+  }
+}
