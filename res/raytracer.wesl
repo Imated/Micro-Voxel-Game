@@ -78,6 +78,7 @@ struct Brick {
 }
 
 const INFINITY: f32 = 3.402823466e+38;
+const WORLD_SIZE: vec3<i32> = vec3<i32>(8, 1, 8);
 const CHUNK_SIZE: f32 = 8.0;
 const VOXEL_SIZE: f32 = 0.1;
 const EPSILON: f32 = 0.000001;
@@ -89,10 +90,10 @@ var output: texture_storage_2d<rgba16float, write>;
 var<uniform> camera: Camera;
 
 @group(2) @binding(0)
-var<storage, read> chunks: array<array<array<Chunk, 32>, 1>, 32>;
+var<storage, read> chunks: array<array<array<Chunk, 8>, 1>, 8>;
 
 fn is_brick_empty(brick_coords: vec3<i32>) -> bool {
-    let offsetted_coords = brick_coords + vec3<i32>(32, 1, 32) * vec3<i32>(i32(CHUNK_SIZE)) / 2;
+    let offsetted_coords = brick_coords + WORLD_SIZE * vec3<i32>(i32(CHUNK_SIZE)) / 2;
     let chunk_coord = offsetted_coords / vec3<i32>(i32(CHUNK_SIZE));
     let local_coord = offsetted_coords % vec3<i32>(i32(CHUNK_SIZE));
 
@@ -112,7 +113,7 @@ fn is_brick_empty(brick_coords: vec3<i32>) -> bool {
 // }
 
 fn is_brick_in_bounds(coords: vec3<i32>) -> bool {
-    let world_half = vec3<i32>(32, 1, 32) * vec3<i32>(i32(CHUNK_SIZE)) / 2;
+    let world_half = WORLD_SIZE * vec3<i32>(i32(CHUNK_SIZE)) / 2;
     return all(coords < world_half) && all(coords >= -world_half);
 }
 
