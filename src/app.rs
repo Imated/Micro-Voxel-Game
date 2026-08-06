@@ -39,7 +39,7 @@ impl App {
             window.inner_size().width,
             window.inner_size().height,
         );
-        let camera = Camera::new(&context, Vec3::splat(0.0), 0.0, 0.0);
+        let camera = Camera::new(&context, Vec3::splat(0.0), 0.0_f32, 0.0_f32);
         let world_renderer = WorldRenderer::new(&context);
         let renderer = Renderer::new(&context, &output, &camera, &world_renderer);
         let blitter = Blitter::new(&context, &output, display.surface_format());

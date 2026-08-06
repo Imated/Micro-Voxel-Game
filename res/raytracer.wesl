@@ -163,7 +163,7 @@ fn main(@builtin(global_invocation_id)id: vec3<u32>) {
 }
 
 fn trace_ray(ray: Ray) -> HitInfo {
-    let world_half = vec3<f32>(32, 1, 32) * vec3<f32>(CHUNK_SIZE) * VOXEL_SIZE / 2;
+    let world_half = vec3<f32>(WORLD_SIZE * i32(CHUNK_SIZE)) * VOXEL_SIZE / 2;
     let world_hit = ray_aabb(-world_half, world_half, ray);
     if world_hit.t == INFINITY {
         return HitInfo(vec3<f32>(0.0), vec3<f32>(0.0), INFINITY, false);

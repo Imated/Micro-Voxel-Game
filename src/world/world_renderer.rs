@@ -8,14 +8,17 @@ use wgpu::{
 pub struct WorldRenderer {
     // 32x1x32 chunk grid, eventually somehow get this from World struct,
     // oh and also to future me, make ts separate from the World struct Chunk type bc this chunk sohuld be like GpuChunk and store brick map and stuff idk u got this
-    chunks: TypedBuffer<[[[Chunk; 8]; 1]; 8]>,
+    chunks: Box<TypedBuffer<[[[Chunk; 8]; 1]; 8]>>,
     chunks_layout: BindGroupLayout,
     chunks_bind_group: BindGroup,
 }
 
 impl WorldRenderer {
     pub fn new(context: &RenderContext) -> Self {
-        let buffer = TypedBuffer::new_storage(context, [[[Chunk::new_from_full(); 8]; 1]; 8]);
+        let buffer = Box::new(TypedBuffer::new_storage(
+            context,
+            [[[Chunk::new_from_full(); 8]; 1]; 8],
+        ));
         let layout = context
             .device
             .create_bind_group_layout(&BindGroupLayoutDescriptor {
