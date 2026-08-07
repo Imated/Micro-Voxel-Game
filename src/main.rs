@@ -14,6 +14,7 @@ use winit::keyboard::PhysicalKey::Code;
 use winit::window::{Window, WindowAttributes, WindowId};
 
 mod app;
+pub mod array_buffer;
 mod blit;
 pub mod buffer;
 pub mod camera;

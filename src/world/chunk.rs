@@ -1,20 +1,16 @@
-use crate::world::brick::Brick;
 use bytemuck::{Pod, Zeroable};
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, Pod, Zeroable)]
 pub struct Chunk {
-    pub bricks: [[[Brick; 8]; 8]; 8],
+    pub bricks: [[[u32; 8]; 8]; 8],
 }
 
 impl Chunk {
     // test fn to create a chunk thats entirely filled with stuff
     pub fn new_from_full() -> Self {
         Self {
-            bricks: [[[Brick {
-                //voxels: [[[true as u32; 8]; 8]; 8],
-                empty: false as u32,
-            }; 8]; 8]; 8],
+            bricks: [[[0; 8]; 8]; 8], // slot 0 in brick pool which we just hardcode to full rn
         }
     }
 }
