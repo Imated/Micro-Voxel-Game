@@ -2123,7 +2123,6 @@ dependencies = [
  "egui-winit",
  "glam",
  "pollster",
- "slab",
  "tracing",
  "tracing-subscriber",
  "wesl",

@@ -3,14 +3,13 @@ use crate::render_context::RenderContext;
 use crate::util::free_list::FreeList;
 use crate::world::chunk::Chunk;
 use crate::{buffer::TypedBuffer, world::brick::Brick};
-use slab::Slab;
+
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupLayout, BindGroupLayoutDescriptor, ShaderStages,
 };
 
 pub struct WorldRenderer {
     brick_pool: FreeList<Brick>,
-    brick_pool_len: usize,
     brick_pool_buffer: TypedArrayBuffer<Brick>,
     // 32x1x32 chunk grid, eventually somehow get this from World struct,
     // oh and also to future me, make ts separate from the World struct Chunk type bc this chunk sohuld be like GpuChunk and store brick map and stuff idk u got this
@@ -52,7 +51,6 @@ impl WorldRenderer {
             chunks: buffer,
             chunks_layout: layout,
             chunks_bind_group: bind_group,
-            brick_pool_len: 1,
             brick_pool_buffer,
         }
     }
