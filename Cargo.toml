@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1.0.103"
+bitvec = "1.1.1"
 bytemuck = "1.25.1"
 egui = { version = "0.35.0", features = ["persistence"] }
 egui-wgpu = { version = "0.35.0" }

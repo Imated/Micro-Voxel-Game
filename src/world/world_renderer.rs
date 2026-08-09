@@ -1,5 +1,6 @@
 use crate::array_buffer::TypedArrayBuffer;
 use crate::render_context::RenderContext;
+use crate::util::free_list::FreeList;
 use crate::world::chunk::Chunk;
 use crate::{buffer::TypedBuffer, world::brick::Brick};
 use slab::Slab;
@@ -8,7 +9,7 @@ use wgpu::{
 };
 
 pub struct WorldRenderer {
-    brick_pool: Slab<Brick>,
+    brick_pool: FreeList<Brick>,
     brick_pool_len: usize,
     brick_pool_buffer: TypedArrayBuffer<Brick>,
     // 32x1x32 chunk grid, eventually somehow get this from World struct,
@@ -22,22 +23,12 @@ impl WorldRenderer {
     pub fn new(context: &RenderContext) -> Self {
         let buffer = TypedBuffer::new_storage(context, [[[Chunk::new_from_full(); 8]; 1]; 8]);
 
-        let mut brick_pool = Slab::new();
-        let _ = brick_pool.insert(Brick {
+        let mut brick_pool = FreeList::default();
+        let _ = brick_pool.push(Brick {
             empty: false as u32,
         });
 
-        let mut vec: Vec<Brick> = Vec::with_capacity(1);
-        for i in 0..1 {
-            let brick = if let Some(&brick) = brick_pool.get(i) {
-                brick
-            } else {
-                Brick { empty: true as u32 }
-            };
-            vec.push(brick);
-        }
-
-        let brick_pool_buffer = TypedArrayBuffer::new_storage(context, &vec);
+        let brick_pool_buffer = TypedArrayBuffer::new_storage(context, &brick_pool);
         let layout = context
             .device
             .create_bind_group_layout(&BindGroupLayoutDescriptor {
@@ -67,17 +58,7 @@ impl WorldRenderer {
     }
 
     pub fn update(&mut self, context: &RenderContext) {
-        let mut vec: Vec<Brick> = Vec::with_capacity(self.brick_pool_len);
-        for i in 0..self.brick_pool_len {
-            let brick = if let Some(&brick) = self.brick_pool.get(i) {
-                brick
-            } else {
-                Brick { empty: true as u32 }
-            };
-            vec.push(brick);
-        }
-
-        self.brick_pool_buffer.update(context, &vec);
+        self.brick_pool_buffer.update(context, &self.brick_pool);
 
         self.chunks_bind_group = context.device.create_bind_group(&BindGroupDescriptor {
             label: Some("World Renderer Bind Group"),

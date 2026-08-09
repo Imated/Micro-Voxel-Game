@@ -22,6 +22,7 @@ pub mod display;
 pub mod gui_renderer;
 pub mod render_context;
 pub mod renderer;
+pub mod util;
 pub mod world;
 
 #[derive(Default)]
