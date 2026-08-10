@@ -90,6 +90,13 @@ impl WorldRenderer {
         self.is_dirty = true;
     }
 
+    pub fn unload_chunk(&mut self, coords: ChunkPos) {
+        let offsetted_coords = coords.0 + World::WORLD_SIZE_HALF;
+        let index = (offsetted_coords.rem_euclid(World::WORLD_SIZE)).as_usizevec3();
+        self.chunk_grid[index.x][index.y][index.z] = Chunk::new_from_empty();
+        self.is_dirty = true;
+    }
+
     pub fn layout(&self) -> &BindGroupLayout {
         &self.chunks_layout
     }

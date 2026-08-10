@@ -3,13 +3,16 @@ use bytemuck::{Pod, Zeroable};
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Pod, Zeroable)]
 pub struct Brick {
-    //pub voxels: [[[u32; 8]; 8]; 8],
+    pub voxels: [[[u32; 8]; 8]; 8],
     pub empty: u32, // u32 bc pod annoying
 }
 
 impl Default for Brick {
     fn default() -> Self {
-        Self { empty: true as u32 }
+        Self {
+            empty: true as u32,
+            voxels: [[[0; 8]; 8]; 8],
+        }
     }
 }
 

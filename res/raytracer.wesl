@@ -75,12 +75,14 @@ struct Chunk {
 }
 
 struct Brick {
+    voxels: array<array<array<u32, 8>, 8>, 8>,
     empty: u32,
 }
 
 const INFINITY: f32 = 3.402823466e+38;
 const WORLD_SIZE: vec3<i32> = vec3<i32>(8, 1, 8);
 const CHUNK_SIZE: f32 = 8.0;
+const BRICK_SIZE: f32 = 8.0;
 const VOXEL_SIZE: f32 = 0.1;
 const EPSILON: f32 = 0.000001;
 
@@ -108,15 +110,17 @@ fn is_brick_empty(brick_coords: vec3<i32>) -> bool {
     return brick_pool[index].empty != 0;
 }
 
-// fn get_voxel(brick_coords: vec3<i32>, voxel_local_coords: vec3<i32>) -> u32 {
-//     let offsetted_coords = brick_coords + vec3<i32>(32, 1, 32) * vec3<i32>(i32(CHUNK_SIZE)) / 2;
-//     let chunk_coord = offsetted_coords / vec3<i32>(i32(CHUNK_SIZE));
-//     let local_coord = offsetted_coords % vec3<i32>(i32(CHUNK_SIZE));
+fn get_voxel(brick_coords: vec3<i32>, voxel_local_coords: vec3<i32>) -> u32 {
+    let offsetted_coords = brick_coords + WORLD_SIZE * vec3<i32>(i32(CHUNK_SIZE)) / 2;
+    let chunk_coord = offsetted_coords / vec3<i32>(i32(CHUNK_SIZE));
+    let local_coord = offsetted_coords % vec3<i32>(i32(CHUNK_SIZE));
+    let index = chunks[chunk_coord.x][chunk_coord.y][chunk_coord.z].indices[local_coord.x][local_coord.y][local_coord.z];
+    if index >= arrayLength(&brick_pool) {
+        return 0;
+    }
 
-//     return chunks[chunk_coord.x][chunk_coord.y][chunk_coord.z]
-//         .bricks[local_coord.x][local_coord.y][local_coord.z]
-//         .voxels[voxel_local_coords.x][voxel_local_coords.y][voxel_local_coords.z];
-// }
+    return brick_pool[index].voxels[voxel_local_coords.x][voxel_local_coords.y][voxel_local_coords.z];
+}
 
 fn is_brick_in_bounds(coords: vec3<i32>) -> bool {
     let world_half = WORLD_SIZE * vec3<i32>(i32(CHUNK_SIZE)) / 2;
@@ -169,7 +173,8 @@ fn main(@builtin(global_invocation_id)id: vec3<u32>) {
 }
 
 fn trace_ray(ray: Ray) -> HitInfo {
-    let world_half = vec3<f32>(WORLD_SIZE * i32(CHUNK_SIZE)) * VOXEL_SIZE / 2;
+    let brick_size = BRICK_SIZE * VOXEL_SIZE;
+    let world_half = vec3<f32>(WORLD_SIZE * i32(CHUNK_SIZE)) * brick_size / 2;
     let world_hit = ray_aabb(-world_half, world_half, ray);
     if world_hit.t == INFINITY {
         return HitInfo(vec3<f32>(0.0), vec3<f32>(0.0), INFINITY, false);
@@ -180,14 +185,14 @@ fn trace_ray(ray: Ray) -> HitInfo {
     let t = select(world_hit.t + 0.0001, 0.0, inside_world);
     let start_pos = ray.origin + ray.direction * t;
 
-    let grid_pos = start_pos / VOXEL_SIZE;
+    let grid_pos = start_pos / brick_size;
     var current_brick = vec3<i32>(floor(grid_pos));
 
     let step = vec3<i32>(sign(ray.direction));
     let inv_dir = select(vec3<f32>(INFINITY), 1 / ray.direction, step != vec3<i32>(0));
-    let t_delta = abs(inv_dir) * VOXEL_SIZE;
+    let t_delta = abs(inv_dir) * brick_size;
     let cb = select(vec3<f32>(current_brick), vec3<f32>(current_brick) + 1, ray.direction > vec3<f32>(0));
-    var t_max = t + (cb - grid_pos) * inv_dir * VOXEL_SIZE;
+    var t_max = t + (cb - grid_pos) * inv_dir * brick_size;
 
     var normal = world_hit.hit_normal;
     var t_current = t;
@@ -199,7 +204,51 @@ fn trace_ray(ray: Ray) -> HitInfo {
         }
 
         if !is_brick_empty(current_brick) {
-            return HitInfo(ray.origin + ray.direction * t_current, normal, t_current, true);
+            // voxel dda
+            let brick_min = vec3<f32>(current_brick) * brick_size;
+            let entry_point = ray.origin + ray.direction * t_current;
+            let local_grid_pos = (entry_point - brick_min) / VOXEL_SIZE;
+
+            var voxel_current = vec3<i32>(floor(local_grid_pos));
+            let voxel_cb = select(vec3<f32>(voxel_current), vec3<f32>(voxel_current) + 1, ray.direction > vec3<f32>(0));
+            var voxel_t_max = t_current + (voxel_cb - local_grid_pos) * inv_dir * VOXEL_SIZE;
+            var voxel_t_current = t_current;
+
+            loop {
+                if get_voxel(current_brick, voxel_current) != 0 {
+                    return HitInfo(ray.origin + ray.direction * voxel_t_current, normal, voxel_t_current, true);
+                }
+
+                if voxel_t_max.x < voxel_t_max.y && voxel_t_max.x < voxel_t_max.z {
+                    voxel_t_current = voxel_t_max.x;
+
+                    voxel_current.x += step.x;
+                    voxel_t_max.x += t_delta.x / BRICK_SIZE;
+
+                    normal = vec3<f32>(0);
+                    normal.x = -f32(step.x);
+                } else if voxel_t_max.y < voxel_t_max.z {
+                    voxel_t_current = voxel_t_max.y;
+
+                    voxel_current.y += step.y;
+                    voxel_t_max.y += t_delta.y / BRICK_SIZE;
+
+                    normal = vec3<f32>(0);
+                    normal.y = -f32(step.y);
+                } else {
+                    voxel_t_current = voxel_t_max.z;
+
+                    voxel_current.z += step.z;
+                    voxel_t_max.z += t_delta.z / BRICK_SIZE;
+
+                    normal = vec3<f32>(0);
+                    normal.z = -f32(step.z);
+                }
+
+                if any(voxel_current < vec3<i32>(0)) || any(voxel_current >= vec3<i32>(i32(BRICK_SIZE))) {
+                    break;
+                }
+            }
         }
 
         if t_max.x < t_max.y && t_max.x < t_max.z {

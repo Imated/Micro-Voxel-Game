@@ -28,7 +28,7 @@ impl Deref for BrickPool {
 impl BrickPool {
     pub fn new(context: &RenderContext) -> Self {
         let mut pool = FreeList::default();
-        pool.push(Brick { empty: true as u32 }); // index 0 always empty
+        pool.push(Brick::default()); // index 0 always empty
         let buffer = TypedArrayBuffer::new_storage(context, &pool);
 
         Self {
@@ -41,6 +41,7 @@ impl BrickPool {
     pub fn add_test_brick(&mut self) {
         self.pool.push(Brick {
             empty: false as u32,
+            voxels: [[[1; 8]; 8]; 8],
         });
 
         self.is_dirty = true;
