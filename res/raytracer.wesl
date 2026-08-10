@@ -100,8 +100,12 @@ fn is_brick_empty(brick_coords: vec3<i32>) -> bool {
     let offsetted_coords = brick_coords + WORLD_SIZE * vec3<i32>(i32(CHUNK_SIZE)) / 2;
     let chunk_coord = offsetted_coords / vec3<i32>(i32(CHUNK_SIZE));
     let local_coord = offsetted_coords % vec3<i32>(i32(CHUNK_SIZE));
+    let index = chunks[chunk_coord.x][chunk_coord.y][chunk_coord.z].indices[local_coord.x][local_coord.y][local_coord.z];
+    if index >= arrayLength(&brick_pool) {
+        return true;
+    }
 
-    return brick_pool[chunks[chunk_coord.x][chunk_coord.y][chunk_coord.z].indices[local_coord.x][local_coord.y][local_coord.z]].empty != 0;
+    return brick_pool[index].empty != 0;
 }
 
 // fn get_voxel(brick_coords: vec3<i32>, voxel_local_coords: vec3<i32>) -> u32 {

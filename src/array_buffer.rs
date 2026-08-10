@@ -12,6 +12,7 @@ use wgpu::{
 pub struct TypedArrayBuffer<T: Pod + Zeroable> {
     inner: Buffer,
     buffer_type: BufferBindingType,
+    len: usize,
     _t: PhantomData<T>,
 }
 
@@ -25,6 +26,7 @@ impl<T: Pod + Zeroable> TypedArrayBuffer<T> {
             ),
             buffer_type: BufferBindingType::Uniform,
             _t: PhantomData,
+            len: data.len(),
         }
     }
 
@@ -37,6 +39,7 @@ impl<T: Pod + Zeroable> TypedArrayBuffer<T> {
             ),
             buffer_type: BufferBindingType::Storage { read_only: true },
             _t: PhantomData,
+            len: data.len(),
         }
     }
 
@@ -60,8 +63,18 @@ impl<T: Pod + Zeroable> TypedArrayBuffer<T> {
         }
     }
 
-    pub fn update(&self, context: &RenderContext, data: &[T]) {
+    pub fn update(&mut self, context: &RenderContext, data: &[T]) -> bool {
+        if data.len() > self.len {
+            //resize buffer
+            self.inner = context.device.create_buffer_init(&BufferInitDescriptor {
+                label: Some(type_name::<T>()),
+                usage: self.inner.usage(),
+                contents: cast_slice(data),
+            });
+            return true;
+        }
         context.queue.write_buffer(&self.inner, 0, cast_slice(data));
+        false
     }
 
     fn create_buffer(context: &RenderContext, data: &[T], usage: BufferUsages) -> Buffer {

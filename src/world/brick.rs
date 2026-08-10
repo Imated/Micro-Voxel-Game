@@ -1,7 +1,7 @@
 use bytemuck::{Pod, Zeroable};
 
 #[repr(C)]
-#[derive(Debug, Copy, Clone, Pod, Zeroable)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Pod, Zeroable)]
 pub struct Brick {
     //pub voxels: [[[u32; 8]; 8]; 8],
     pub empty: u32, // u32 bc pod annoying
@@ -14,5 +14,5 @@ impl Default for Brick {
 }
 
 impl Brick {
-    pub const EMPTY: usize = 0xFFFFFFFF;
+    pub const EMPTY: usize = 0;
 }

@@ -76,6 +76,7 @@ impl App {
         };
 
         self.camera.update(&self.context, delta_time);
+        self.world_renderer.update(&self.context);
         self.renderer
             .raytrace_pass(&mut frame, &self.output, &self.camera, &self.world_renderer);
         self.blitter.blit(&mut frame);

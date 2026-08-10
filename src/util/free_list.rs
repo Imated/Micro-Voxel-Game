@@ -15,7 +15,7 @@ pub struct FreeList<T> {
     next: usize,
 }
 
-impl<T: Default> Default for FreeList<T> {
+impl<T> Default for FreeList<T> {
     fn default() -> Self {
         Self {
             slots: vec![],
@@ -26,21 +26,21 @@ impl<T: Default> Default for FreeList<T> {
     }
 }
 
-impl<T: Default> DerefMut for FreeList<T> {
+impl<T> DerefMut for FreeList<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.slots
+        &mut self.slots[0..self.greatest_used_index + 1]
     }
 }
 
-impl<T: Default> Deref for FreeList<T> {
+impl<T> Deref for FreeList<T> {
     type Target = [T];
 
     fn deref(&self) -> &Self::Target {
-        &self.slots
+        &self.slots[0..self.greatest_used_index + 1]
     }
 }
 
-impl<T: Default> FreeList<T> {
+impl<T: Default + PartialEq> FreeList<T> {
     pub fn push(&mut self, data: T) -> usize {
         let next = self.next;
         self.slots.insert(next, data);
@@ -57,5 +57,21 @@ impl<T: Default> FreeList<T> {
         self.reserved.insert(index, false);
         self.greatest_used_index = self.reserved.len() - self.reserved.trailing_zeros();
         self.next = self.reserved.leading_ones();
+    }
+
+    pub fn contains(&self, data: T) -> Option<usize> {
+        for (index, slot) in self.slots.iter().enumerate() {
+            if index > self.greatest_used_index {
+                return None;
+            }
+            if *slot == data {
+                return Some(index);
+            }
+        }
+        None
+    }
+
+    pub fn greatest_used_index(&self) -> usize {
+        self.greatest_used_index
     }
 }

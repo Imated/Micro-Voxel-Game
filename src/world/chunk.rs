@@ -10,7 +10,7 @@ impl Chunk {
     // test fn to create a chunk thats entirely filled with stuff
     pub fn new_from_full() -> Self {
         Self {
-            bricks: [[[0; 8]; 8]; 8], // slot 0 in brick pool which we just hardcode to full rn
+            bricks: [[[1; 8]; 8]; 8], // slot 1 in brick pool which we just hardcode to full rn
         }
     }
 }
