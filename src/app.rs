@@ -4,9 +4,10 @@ use crate::display::{Display, Frame};
 use crate::gui_renderer::GuiRenderer;
 use crate::render_context::RenderContext;
 use crate::renderer::{RenderTexture, Renderer};
+use crate::world::chunk::{Chunk, ChunkPos};
 use crate::world::world_renderer::WorldRenderer;
 use egui::{Align2, Color32, FontId, RichText, Sense, vec2};
-use glam::{Vec2, Vec3};
+use glam::{Vec2, Vec3, ivec3};
 use std::num::NonZeroU32;
 use std::sync::Arc;
 use std::time::Duration;
@@ -40,7 +41,7 @@ impl App {
             window.inner_size().height,
         );
         let camera = Camera::new(&context, Vec3::splat(0.0), 0.0_f32, 0.0_f32);
-        let world_renderer = WorldRenderer::new(&context);
+        let mut world_renderer = WorldRenderer::new(&context);
         let renderer = Renderer::new(&context, &output, &camera, &world_renderer);
         let blitter = Blitter::new(&context, &output, display.surface_format());
         let gui_renderer = GuiRenderer::new(&context, window.clone(), display.surface_format());
@@ -53,6 +54,14 @@ impl App {
             },
         )
         .expect("Failed to crate GPU profiler.");
+
+        for x in 0..8 {
+            for y in 0..1 {
+                for z in 0..8 {
+                    world_renderer.load_chunk(ChunkPos(ivec3(x, y, z)));
+                }
+            }
+        }
 
         Self {
             window,
