@@ -86,7 +86,7 @@ impl WorldRenderer {
     pub fn load_chunk(&mut self, coords: ChunkPos) {
         let offsetted_coords = coords.0 + World::WORLD_SIZE_HALF;
         let index = (offsetted_coords.rem_euclid(World::WORLD_SIZE)).as_usizevec3();
-        self.chunk_grid[index.x][index.y][index.z] = Chunk::new_from_full();
+        self.chunk_grid[index.x][index.y][index.z] = self.brick_pool.gen_test_chunk();
         self.is_dirty = true;
     }
 

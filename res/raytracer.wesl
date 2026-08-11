@@ -209,7 +209,7 @@ fn trace_ray(ray: Ray) -> HitInfo {
             let entry_point = ray.origin + ray.direction * t_current;
             let local_grid_pos = (entry_point - brick_min) / VOXEL_SIZE;
 
-            var voxel_current = vec3<i32>(floor(local_grid_pos));
+            var voxel_current = clamp(vec3<i32>(floor(local_grid_pos)), vec3<i32>(0), vec3<i32>(i32(BRICK_SIZE) - 1));
             let voxel_cb = select(vec3<f32>(voxel_current), vec3<f32>(voxel_current) + 1, ray.direction > vec3<f32>(0));
             var voxel_t_max = t_current + (voxel_cb - local_grid_pos) * inv_dir * VOXEL_SIZE;
             var voxel_t_current = t_current;

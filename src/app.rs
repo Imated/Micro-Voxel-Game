@@ -4,7 +4,7 @@ use crate::display::{Display, Frame};
 use crate::gui_renderer::GuiRenderer;
 use crate::render_context::RenderContext;
 use crate::renderer::{RenderTexture, Renderer};
-use crate::world::chunk::{Chunk, ChunkPos};
+use crate::world::chunk::ChunkPos;
 use crate::world::world_renderer::WorldRenderer;
 use egui::{Align2, Color32, FontId, RichText, Sense, vec2};
 use glam::{Vec2, Vec3, ivec3};
