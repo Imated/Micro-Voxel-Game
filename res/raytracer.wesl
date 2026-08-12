@@ -98,19 +98,7 @@ var<storage, read> chunks: array<array<array<Chunk, 8>, 1>, 8>;
 @group(2) @binding(1)
 var<storage, read> brick_pool: array<Brick>;
 
-fn is_brick_empty(brick_coords: vec3<i32>) -> bool {
-    let offsetted_coords = brick_coords + WORLD_SIZE * vec3<i32>(i32(CHUNK_SIZE)) / 2;
-    let chunk_coord = offsetted_coords / vec3<i32>(i32(CHUNK_SIZE));
-    let local_coord = offsetted_coords % vec3<i32>(i32(CHUNK_SIZE));
-    let index = chunks[chunk_coord.x][chunk_coord.y][chunk_coord.z].indices[local_coord.x][local_coord.y][local_coord.z];
-    if index >= arrayLength(&brick_pool) {
-        return true;
-    }
-
-    return brick_pool[index].empty != 0;
-}
-
-fn get_voxel(brick_coords: vec3<i32>, voxel_local_coords: vec3<i32>) -> u32 {
+fn get_brick(brick_coords: vec3<i32>) -> u32 {
     let offsetted_coords = brick_coords + WORLD_SIZE * vec3<i32>(i32(CHUNK_SIZE)) / 2;
     let chunk_coord = offsetted_coords / vec3<i32>(i32(CHUNK_SIZE));
     let local_coord = offsetted_coords % vec3<i32>(i32(CHUNK_SIZE));
@@ -119,7 +107,15 @@ fn get_voxel(brick_coords: vec3<i32>, voxel_local_coords: vec3<i32>) -> u32 {
         return 0;
     }
 
-    return brick_pool[index].voxels[voxel_local_coords.x][voxel_local_coords.y][voxel_local_coords.z];
+    return index;
+}
+
+fn get_voxel(brick: u32, voxel_local_coords: vec3<i32>) -> u32 {
+    if brick >= arrayLength(&brick_pool) {
+        return 0;
+    }
+
+    return brick_pool[brick].voxels[voxel_local_coords.x][voxel_local_coords.y][voxel_local_coords.z];
 }
 
 fn is_brick_in_bounds(coords: vec3<i32>) -> bool {
@@ -203,7 +199,9 @@ fn trace_ray(ray: Ray) -> HitInfo {
             break;
         }
 
-        if !is_brick_empty(current_brick) {
+        let brick = get_brick(current_brick);
+
+        if brick_pool[brick].empty == 0 {
             // voxel dda
             let brick_min = vec3<f32>(current_brick) * brick_size;
             let entry_point = ray.origin + ray.direction * t_current;
@@ -215,7 +213,7 @@ fn trace_ray(ray: Ray) -> HitInfo {
             var voxel_t_current = t_current;
 
             loop {
-                if get_voxel(current_brick, voxel_current) != 0 {
+                if get_voxel(brick, voxel_current) != 0 {
                     return HitInfo(ray.origin + ray.direction * voxel_t_current, normal, voxel_t_current, true);
                 }
 
