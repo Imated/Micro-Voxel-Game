@@ -95,4 +95,12 @@ impl BrickPool {
         self.is_dirty = false;
         self.buffer.update(context, &self.pool)
     }
+
+    pub fn len(&self) -> usize {
+        self.pool.greatest_used_index() + 1
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.pool.reserved_slots().not_any()
+    }
 }

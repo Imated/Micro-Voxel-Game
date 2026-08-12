@@ -11,6 +11,7 @@ use glam::{Vec2, Vec3, ivec3};
 use std::num::NonZeroU32;
 use std::sync::Arc;
 use std::time::Duration;
+use tracing::info;
 use wgpu_profiler::{GpuProfiler, GpuProfilerSettings};
 use winit::event::{ElementState, MouseButton, WindowEvent};
 use winit::keyboard::KeyCode;
@@ -62,6 +63,8 @@ impl App {
                 }
             }
         }
+
+        info!("bricks: {}", world_renderer.brick_pool.len());
 
         Self {
             window,

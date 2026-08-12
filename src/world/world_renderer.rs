@@ -2,17 +2,15 @@ use crate::array_buffer::TypedArrayBuffer;
 use crate::render_context::RenderContext;
 use crate::world::brick_pool::BrickPool;
 use crate::world::chunk::Chunk;
+use crate::world::chunk::ChunkPos;
 use crate::world::world::World;
-use crate::{buffer::TypedBuffer, world::chunk::ChunkPos};
-
-use glam::ivec3;
 use tracing::info;
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupLayout, BindGroupLayoutDescriptor, ShaderStages,
 };
 
 pub struct WorldRenderer {
-    brick_pool: BrickPool,
+    pub brick_pool: BrickPool,
     chunk_grid: [[[Chunk; World::WORLD_SIZE.x as usize]; World::WORLD_SIZE.y as usize];
         World::WORLD_SIZE.z as usize],
     // 32x1x32 chunk grid, eventually somehow get this from World struct,
