@@ -1,0 +1,20 @@
+# TODO
+- share bricks
+- svgf for denoising https://github.com/jacquespillet/SVGF
+- occupancy map?
+- chunk loading/unload when camera moves
+- 3d textures?
+- terrain gen
+- maybee biomes
+- physixs
+- materials
+- materials per brick
+- fog!
+- clouds
+- stuff raytracing related from book
+- hud
+- ~~finish goddam dda already~~
+- ~~per voxel dda inside brick~~
+- ~~brick pool~~
+- ~~free list brick pool~~
+- ~~actual ray traced lighting?~~
