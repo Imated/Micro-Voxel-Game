@@ -110,14 +110,6 @@ fn get_brick(brick_coords: vec3<i32>) -> u32 {
     return index;
 }
 
-fn get_voxel(brick: u32, voxel_local_coords: vec3<i32>) -> u32 {
-    if brick >= arrayLength(&brick_pool) {
-        return 0;
-    }
-
-    return brick_pool[brick].voxels[voxel_local_coords.x][voxel_local_coords.y][voxel_local_coords.z];
-}
-
 fn is_brick_in_bounds(coords: vec3<i32>) -> bool {
     let world_half = WORLD_SIZE * vec3<i32>(i32(CHUNK_SIZE)) / 2;
     return all(coords < world_half) && all(coords >= -world_half);
@@ -187,6 +179,7 @@ fn trace_ray(ray: Ray) -> HitInfo {
     let step = vec3<i32>(sign(ray.direction));
     let inv_dir = select(vec3<f32>(INFINITY), 1 / ray.direction, step != vec3<i32>(0));
     let t_delta = abs(inv_dir) * brick_size;
+    let voxel_t_delta = abs(inv_dir) * VOXEL_SIZE;
     let cb = select(vec3<f32>(current_brick), vec3<f32>(current_brick) + 1, ray.direction > vec3<f32>(0));
     var t_max = t + (cb - grid_pos) * inv_dir * brick_size;
 
@@ -199,9 +192,10 @@ fn trace_ray(ray: Ray) -> HitInfo {
             break;
         }
 
-        let brick = get_brick(current_brick);
+        let index = get_brick(current_brick);
+        let brick = &brick_pool[index];
 
-        if brick_pool[brick].empty == 0 {
+        if (*brick).empty == 0 {
             // voxel dda
             let brick_min = vec3<f32>(current_brick) * brick_size;
             let entry_point = ray.origin + ray.direction * t_current;
@@ -213,7 +207,7 @@ fn trace_ray(ray: Ray) -> HitInfo {
             var voxel_t_current = t_current;
 
             loop {
-                if get_voxel(brick, voxel_current) != 0 {
+                if (*brick).voxels[voxel_current.x][voxel_current.y][voxel_current.z] != 0 {
                     return HitInfo(ray.origin + ray.direction * voxel_t_current, normal, voxel_t_current, true);
                 }
 
@@ -221,7 +215,7 @@ fn trace_ray(ray: Ray) -> HitInfo {
                     voxel_t_current = voxel_t_max.x;
 
                     voxel_current.x += step.x;
-                    voxel_t_max.x += t_delta.x / BRICK_SIZE;
+                    voxel_t_max.x += voxel_t_delta.x;
 
                     normal = vec3<f32>(0);
                     normal.x = -f32(step.x);
@@ -229,7 +223,7 @@ fn trace_ray(ray: Ray) -> HitInfo {
                     voxel_t_current = voxel_t_max.y;
 
                     voxel_current.y += step.y;
-                    voxel_t_max.y += t_delta.y / BRICK_SIZE;
+                    voxel_t_max.y += voxel_t_delta.y;
 
                     normal = vec3<f32>(0);
                     normal.y = -f32(step.y);
@@ -237,7 +231,7 @@ fn trace_ray(ray: Ray) -> HitInfo {
                     voxel_t_current = voxel_t_max.z;
 
                     voxel_current.z += step.z;
-                    voxel_t_max.z += t_delta.z / BRICK_SIZE;
+                    voxel_t_max.z += voxel_t_delta.z;
 
                     normal = vec3<f32>(0);
                     normal.z = -f32(step.z);
