@@ -64,7 +64,7 @@ impl BrickPool {
                     }
 
                     let brick = Brick {
-                        voxels,
+                        voxels: voxels.as_flattened().as_flattened().try_into().unwrap(),
                         empty: empty as u32,
                     };
 
@@ -76,15 +76,6 @@ impl BrickPool {
         self.is_dirty = true;
 
         chunk
-    }
-
-    pub fn add_test_brick(&mut self) {
-        self.pool.push(Brick {
-            empty: false as u32,
-            voxels: [[[1; 8]; 8]; 8],
-        });
-
-        self.is_dirty = true;
     }
 
     /// Returns if the update did smth, false if it wasnt dirty.

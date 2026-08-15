@@ -75,7 +75,7 @@ struct Chunk {
 }
 
 struct Brick {
-    voxels: array<array<array<u32, 8>, 8>, 8>,
+    voxels: array<u32, 512>,
     empty: u32,
 }
 
@@ -114,6 +114,11 @@ fn is_brick_in_bounds(coords: vec3<i32>) -> bool {
     let world_half = WORLD_SIZE * vec3<i32>(i32(CHUNK_SIZE)) / 2;
     return all(coords < world_half) && all(coords >= -world_half);
 }
+
+fn flatten(coord: vec3<u32>, size: u32) -> u32 {
+    return coord.z * size * size + coord.y * size + coord.x;
+}
+
 
 @compute
 @workgroup_size(16, 16)
@@ -207,7 +212,7 @@ fn trace_ray(ray: Ray) -> HitInfo {
             var voxel_t_current = t_current;
 
             loop {
-                if (*brick).voxels[voxel_current.x][voxel_current.y][voxel_current.z] != 0 {
+                if (*brick).voxels[flatten(vec3<u32>(voxel_current), u32(BRICK_SIZE))] != 0 {
                     return HitInfo(ray.origin + ray.direction * voxel_t_current, normal, voxel_t_current, true);
                 }
 
