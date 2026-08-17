@@ -89,9 +89,9 @@ impl Renderer {
             .create_pipeline_layout(&PipelineLayoutDescriptor {
                 label: Some("Raytracing Pipeline Layout"),
                 bind_group_layouts: &[
-                    Some(&bind_group_layout),
-                    Some(&camera.get_layout()),
                     Some(world_renderer.layout()),
+                    Some(&camera.get_layout()),
+                    Some(&bind_group_layout),
                 ],
                 immediate_size: 0,
             });
@@ -133,9 +133,9 @@ impl Renderer {
         let mut compute_pass = frame.profiler.scope("Raytracing", &mut compute_pass);
 
         compute_pass.set_pipeline(&self.pipeline);
-        compute_pass.set_bind_group(0, &self.bind_group, &[]);
+        compute_pass.set_bind_group(0, world_renderer.bind_group(), &[]);
         compute_pass.set_bind_group(1, camera.get_bind_group(), &[]);
-        compute_pass.set_bind_group(2, world_renderer.bind_group(), &[]);
+        compute_pass.set_bind_group(2, &self.bind_group, &[]);
         compute_pass.dispatch_workgroups(output.width.div_ceil(16), output.height.div_ceil(16), 1);
     }
 

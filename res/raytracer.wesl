@@ -87,16 +87,16 @@ const VOXEL_SIZE: f32 = 0.1;
 const EPSILON: f32 = 0.000001;
 
 @group(0) @binding(0)
-var output: texture_storage_2d<rgba16float, write>;
+var<storage, read> chunks: array<Chunk, 64>; // 8 * 1 * 8
+
+@group(0) @binding(1)
+var<storage, read> brick_pool: array<Brick>;
 
 @group(1) @binding(0)
 var<uniform> camera: Camera;
 
 @group(2) @binding(0)
-var<storage, read> chunks: array<Chunk, 64>; // 8 * 1 * 8
-
-@group(2) @binding(1)
-var<storage, read> brick_pool: array<Brick>;
+var output: texture_storage_2d<rgba16float, write>;
 
 fn get_brick(brick_coords: vec3<i32>) -> u32 {
     let offsetted_coords = brick_coords + WORLD_SIZE * vec3<i32>(i32(CHUNK_SIZE)) / 2;
@@ -117,7 +117,7 @@ fn is_brick_in_bounds(coords: vec3<i32>) -> bool {
 }
 
 fn flatten(coord: vec3<u32>, size: vec3<u32>) -> u32 {
-    return coord.z * size.z * size.y + coord.y * size.x + coord.x;
+    return coord.z * size.y * size.x + coord.y * size.x + coord.x;
 }
 
 
@@ -150,7 +150,7 @@ fn main(@builtin(global_invocation_id)id: vec3<u32>) {
     var current_ray = ray;
     var in_light = vec4<f32>(0.0);
     var color = vec4<f32>(1.0);
-    for (var i = 0; i < 4; i++) {
+    for (var i = 0; i < 2; i++) {
         let info = trace_ray(current_ray);
 
         if info.t == INFINITY {
