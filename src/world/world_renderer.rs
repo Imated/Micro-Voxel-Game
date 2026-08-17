@@ -28,7 +28,7 @@ impl WorldRenderer {
             WORLD_SIZE.z as usize];
         let buffer = TypedArrayBuffer::new_storage(context, &[chunk_grid]);
 
-        let mut brick_pool = BrickPool::new(context);
+        let brick_pool = BrickPool::new(context);
 
         let layout = context
             .device

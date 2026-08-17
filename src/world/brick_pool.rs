@@ -1,8 +1,10 @@
 use std::ops::{Deref, DerefMut};
 
 use crate::{
-    array_buffer::TypedArrayBuffer, render_context::RenderContext, util::free_list::FreeList,
-    world::brick::Brick, world::chunk::Chunk,
+    array_buffer::TypedArrayBuffer,
+    render_context::RenderContext,
+    util::{constants::CHUNK_SIZE, flatten, free_list::FreeList},
+    world::{brick::Brick, chunk::Chunk},
 };
 
 pub struct BrickPool {
@@ -63,8 +65,24 @@ impl BrickPool {
                         }
                     }
 
+                    let mut flattened_voxels =
+                        [0; (CHUNK_SIZE.x * CHUNK_SIZE.y * CHUNK_SIZE.z) as usize];
+
+                    for (x, plane) in voxels.iter().enumerate() {
+                        for (y, row) in plane.iter().enumerate() {
+                            for (z, voxel) in row.iter().enumerate() {
+                                flattened_voxels[flatten(
+                                    x as u32,
+                                    y as u32,
+                                    z as u32,
+                                    CHUNK_SIZE.x as u32,
+                                ) as usize] = *voxel;
+                            }
+                        }
+                    }
+
                     let brick = Brick {
-                        voxels: voxels.as_flattened().as_flattened().try_into().unwrap(),
+                        voxels: flattened_voxels,
                         empty: empty as u32,
                     };
 
