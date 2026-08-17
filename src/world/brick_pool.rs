@@ -71,12 +71,9 @@ impl BrickPool {
                     for (x, plane) in voxels.iter().enumerate() {
                         for (y, row) in plane.iter().enumerate() {
                             for (z, voxel) in row.iter().enumerate() {
-                                flattened_voxels[flatten(
-                                    x as u32,
-                                    y as u32,
-                                    z as u32,
-                                    CHUNK_SIZE.x as u32,
-                                ) as usize] = *voxel;
+                                flattened_voxels
+                                    [flatten(x as u32, y as u32, z as u32, CHUNK_SIZE) as usize] =
+                                    *voxel;
                             }
                         }
                     }

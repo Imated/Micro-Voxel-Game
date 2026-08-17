@@ -93,7 +93,7 @@ var output: texture_storage_2d<rgba16float, write>;
 var<uniform> camera: Camera;
 
 @group(2) @binding(0)
-var<storage, read> chunks: array<array<array<Chunk, 8>, 1>, 8>;
+var<storage, read> chunks: array<Chunk, 64>; // 8 * 1 * 8
 
 @group(2) @binding(1)
 var<storage, read> brick_pool: array<Brick>;
@@ -102,7 +102,8 @@ fn get_brick(brick_coords: vec3<i32>) -> u32 {
     let offsetted_coords = brick_coords + WORLD_SIZE * vec3<i32>(i32(CHUNK_SIZE)) / 2;
     let chunk_coord = offsetted_coords / vec3<i32>(i32(CHUNK_SIZE));
     let local_coord = offsetted_coords % vec3<i32>(i32(CHUNK_SIZE));
-    let index = chunks[chunk_coord.x][chunk_coord.y][chunk_coord.z].indices[local_coord.x][local_coord.y][local_coord.z];
+    let chunk_index = flatten(vec3<u32>(chunk_coord), vec3<u32>(WORLD_SIZE));
+    let index = chunks[chunk_index].indices[local_coord.x][local_coord.y][local_coord.z];
     if index >= arrayLength(&brick_pool) {
         return 0;
     }
@@ -115,8 +116,8 @@ fn is_brick_in_bounds(coords: vec3<i32>) -> bool {
     return all(coords < world_half) && all(coords >= -world_half);
 }
 
-fn flatten(coord: vec3<u32>, size: u32) -> u32 {
-    return coord.z * size * size + coord.y * size + coord.x;
+fn flatten(coord: vec3<u32>, size: vec3<u32>) -> u32 {
+    return coord.z * size.z * size.y + coord.y * size.x + coord.x;
 }
 
 
@@ -212,7 +213,7 @@ fn trace_ray(ray: Ray) -> HitInfo {
             var voxel_t_current = t_current;
 
             loop {
-                if (*brick).voxels[flatten(vec3<u32>(voxel_current), u32(BRICK_SIZE))] != 0 {
+                if (*brick).voxels[flatten(vec3<u32>(voxel_current), vec3<u32>(u32(BRICK_SIZE)))] != 0 {
                     return HitInfo(ray.origin + ray.direction * voxel_t_current, normal, voxel_t_current, true);
                 }
 
