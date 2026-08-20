@@ -107,7 +107,7 @@ impl Camera {
     }
 
     pub fn update(&mut self, context: &RenderContext, delta_time: Duration) {
-        const SPEED: f32 = 10.0;
+        const SPEED: f32 = 100.0;
         const SENSITIVITY: f32 = 0.001;
 
         let direction = Vec2::new(

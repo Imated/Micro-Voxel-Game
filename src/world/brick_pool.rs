@@ -1,6 +1,6 @@
 use std::ops::{Deref, DerefMut};
 
-use bitvec::{bitvec, order::Lsb0, vec::BitVec};
+use bitvec::{bitvec, order::Lsb0};
 
 use crate::{
     array_buffer::TypedArrayBuffer,

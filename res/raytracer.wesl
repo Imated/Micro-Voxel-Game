@@ -90,7 +90,6 @@ const INFINITY: f32 = 3.402823466e+38;
 const WORLD_SIZE: vec3<i32> = vec3<i32>(8, 1, 8);
 const CHUNK_SIZE: f32 = 8.0;
 const BRICK_SIZE: f32 = 8.0;
-const VOXEL_SIZE: f32 = 0.1;
 const EPSILON: f32 = 0.000001;
 
 @group(0) @binding(0)
@@ -174,7 +173,7 @@ fn main(@builtin(global_invocation_id)id: vec3<u32>) {
 }
 
 fn trace_ray(ray: Ray) -> HitInfo {
-    let brick_size = BRICK_SIZE * VOXEL_SIZE;
+    let brick_size = BRICK_SIZE;
     let world_half = vec3<f32>(WORLD_SIZE * i32(CHUNK_SIZE)) * brick_size / 2;
     let world_hit = ray_aabb(-world_half, world_half, ray);
     if world_hit.t == INFINITY {
@@ -192,14 +191,14 @@ fn trace_ray(ray: Ray) -> HitInfo {
     let step = vec3<i32>(sign(ray.direction));
     let inv_dir = select(vec3<f32>(INFINITY), 1 / ray.direction, step != vec3<i32>(0));
     let t_delta = abs(inv_dir) * brick_size;
-    let voxel_t_delta = abs(inv_dir) * VOXEL_SIZE;
+    let voxel_t_delta = abs(inv_dir);
     let cb = select(vec3<f32>(current_brick), vec3<f32>(current_brick) + 1, ray.direction > vec3<f32>(0));
     var t_max = select(vec3<f32>(INFINITY), t + (cb - grid_pos) * inv_dir * brick_size, step != vec3<i32>(0));
 
     var normal = world_hit.hit_normal;
     var t_current = t;
 
-    for (var brick_steps = 0; brick_steps < 256; brick_steps++) {
+    loop {
         // ray stepped out of loaded chunks, no point to march ray anymore
         if !is_brick_in_bounds(current_brick) {
             break;
@@ -210,14 +209,14 @@ fn trace_ray(ray: Ray) -> HitInfo {
         // voxel dda
         let brick_min = vec3<f32>(current_brick) * brick_size;
         let entry_point = ray.origin + ray.direction * t_current;
-        let local_grid_pos = (entry_point - brick_min) / VOXEL_SIZE;
+        let local_grid_pos = (entry_point - brick_min);
 
         var voxel_current = clamp(vec3<i32>(floor(local_grid_pos)), vec3<i32>(0), vec3<i32>(i32(BRICK_SIZE) - 1));
         let voxel_cb = select(vec3<f32>(voxel_current), vec3<f32>(voxel_current) + 1, ray.direction > vec3<f32>(0));
-        var voxel_t_max = select(vec3<f32>(INFINITY), t_current + (voxel_cb - local_grid_pos) * inv_dir * VOXEL_SIZE, step != vec3<i32>(0));
+        var voxel_t_max = select(vec3<f32>(INFINITY), t_current + (voxel_cb - local_grid_pos) * inv_dir, step != vec3<i32>(0));
         var voxel_t_current = t_current;
 
-        for (var voxel_steps = 0; voxel_steps < 32; voxel_steps++) {
+        loop {
             let bit = flatten(vec3<u32>(voxel_current), vec3<u32>(u32(BRICK_SIZE)));
             let word = brick_pool[index].occupancy_mask[bit / 32];
             if (word & (1u << (bit % 32))) != 0 {
