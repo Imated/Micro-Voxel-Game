@@ -29,7 +29,14 @@ fn rotate(x: u32, k: u32) -> u32 {
 }
 
 fn rand_unit_vector() -> vec3<f32> {
-    return normalize(vec3<f32>(rand() * 2 - 1, rand() * 2 - 1, rand() * 2 - 1));
+    loop {
+        let v = vec3<f32>(rand() * 2 - 1, rand() * 2 - 1, rand() * 2 - 1);
+        let len_sq = dot(v, v);
+        if len_sq > EPSILON && len_sq <= 1.0 {
+            return v / sqrt(len_sq);
+        }
+    }
+    return vec3<f32>(1);
 }
 
 fn rand_on_hemisphere(normal: vec3<f32>) -> vec3<f32> {
@@ -186,7 +193,7 @@ fn trace_ray(ray: Ray) -> HitInfo {
     let t_delta = abs(inv_dir) * brick_size;
     let voxel_t_delta = abs(inv_dir) * VOXEL_SIZE;
     let cb = select(vec3<f32>(current_brick), vec3<f32>(current_brick) + 1, ray.direction > vec3<f32>(0));
-    var t_max = t + (cb - grid_pos) * inv_dir * brick_size;
+    var t_max = select(vec3<f32>(INFINITY), t + (cb - grid_pos) * inv_dir * brick_size, step != vec3<i32>(0));
 
     var normal = world_hit.hit_normal;
     var t_current = t;
@@ -206,7 +213,7 @@ fn trace_ray(ray: Ray) -> HitInfo {
 
         var voxel_current = clamp(vec3<i32>(floor(local_grid_pos)), vec3<i32>(0), vec3<i32>(i32(BRICK_SIZE) - 1));
         let voxel_cb = select(vec3<f32>(voxel_current), vec3<f32>(voxel_current) + 1, ray.direction > vec3<f32>(0));
-        var voxel_t_max = t_current + (voxel_cb - local_grid_pos) * inv_dir * VOXEL_SIZE;
+        var voxel_t_max = select(vec3<f32>(INFINITY), t_current + (voxel_cb - local_grid_pos) * inv_dir * VOXEL_SIZE, step != vec3<i32>(0));
         var voxel_t_current = t_current;
 
         for (var voxel_steps = 0; voxel_steps < 32; voxel_steps++) {
@@ -283,8 +290,10 @@ fn sky(ray: Ray) -> vec4<f32> {
 }
 
 fn ray_aabb(box_min: vec3<f32>, box_max: vec3<f32>, ray: Ray) -> HitInfo {
-    let t_min = (box_min - ray.origin) / ray.direction;
-    let t_max = (box_max - ray.origin) / ray.direction;
+    let safe_dir = select(vec3<f32>(EPSILON), ray.direction, abs(ray.direction) > vec3<f32>(EPSILON));
+    let inv_dir = 1.0 / safe_dir;
+    let t_min = (box_min - ray.origin) * inv_dir;
+    let t_max = (box_max - ray.origin) * inv_dir;
     let t1 = min(t_min, t_max);
     let t2 = max(t_min, t_max);
     let t_near = max(max(t1.x, t1.y), t1.z);
