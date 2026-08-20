@@ -1,9 +1,15 @@
 use std::ops::{Deref, DerefMut};
 
+use bitvec::{bitvec, order::Lsb0, vec::BitVec};
+
 use crate::{
     array_buffer::TypedArrayBuffer,
     render_context::RenderContext,
-    util::{constants::CHUNK_SIZE, flatten, free_list::FreeList},
+    util::{
+        constants::{BRICK_SIZE, CHUNK_SIZE},
+        flatten,
+        free_list::FreeList,
+    },
     world::{brick::Brick, chunk::Chunk},
 };
 
@@ -50,7 +56,7 @@ impl BrickPool {
             for by in 0..8 {
                 for bz in 0..8 {
                     let mut voxels = [[[0; 8]; 8]; 8];
-                    let mut empty = true;
+                    let mut occupancy = bitvec!(u32, Lsb0; 0; (BRICK_SIZE.x * BRICK_SIZE.y * BRICK_SIZE.z) as usize);
                     for (vx, voxels2) in voxels.iter_mut().enumerate() {
                         for (vy, voxels3) in voxels2.iter_mut().enumerate() {
                             for (vz, voxel) in voxels3.iter_mut().enumerate() {
@@ -59,7 +65,11 @@ impl BrickPool {
                                 let dz = bz * 8 + vz - CENTER;
                                 if dx * dx + dy * dy + dz * dz <= RADIUS * RADIUS {
                                     *voxel = 1;
-                                    empty = false;
+                                    occupancy.set(
+                                        flatten(vx as u32, vy as u32, vz as u32, BRICK_SIZE)
+                                            as usize,
+                                        true,
+                                    );
                                 }
                             }
                         }
@@ -80,7 +90,7 @@ impl BrickPool {
 
                     let brick = Brick {
                         voxels: flattened_voxels,
-                        empty: empty as u32,
+                        occupancy_mask: occupancy.as_raw_slice().try_into().unwrap(),
                     };
 
                     chunk.bricks[bx][by][bz] = self.pool.push(brick) as u32;
