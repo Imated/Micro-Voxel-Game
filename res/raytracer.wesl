@@ -205,52 +205,53 @@ fn trace_ray(ray: Ray) -> HitInfo {
         }
 
         let index = get_brick(current_brick);
+        if index != 0 {
+            // voxel dda
+            let brick_min = vec3<f32>(current_brick) * brick_size;
+            let entry_point = ray.origin + ray.direction * t_current;
+            let local_grid_pos = (entry_point - brick_min);
 
-        // voxel dda
-        let brick_min = vec3<f32>(current_brick) * brick_size;
-        let entry_point = ray.origin + ray.direction * t_current;
-        let local_grid_pos = (entry_point - brick_min);
+            var voxel_current = clamp(vec3<i32>(floor(local_grid_pos)), vec3<i32>(0), vec3<i32>(i32(BRICK_SIZE) - 1));
+            let voxel_cb = select(vec3<f32>(voxel_current), vec3<f32>(voxel_current) + 1, ray.direction > vec3<f32>(0));
+            var voxel_t_max = select(vec3<f32>(INFINITY), t_current + (voxel_cb - local_grid_pos) * inv_dir, step != vec3<i32>(0));
+            var voxel_t_current = t_current;
 
-        var voxel_current = clamp(vec3<i32>(floor(local_grid_pos)), vec3<i32>(0), vec3<i32>(i32(BRICK_SIZE) - 1));
-        let voxel_cb = select(vec3<f32>(voxel_current), vec3<f32>(voxel_current) + 1, ray.direction > vec3<f32>(0));
-        var voxel_t_max = select(vec3<f32>(INFINITY), t_current + (voxel_cb - local_grid_pos) * inv_dir, step != vec3<i32>(0));
-        var voxel_t_current = t_current;
+            loop {
+                let bit = flatten(vec3<u32>(voxel_current), vec3<u32>(u32(BRICK_SIZE)));
+                let word = brick_pool[index].occupancy_mask[bit / 32];
+                if (word & (1u << (bit % 32))) != 0 {
+                    return HitInfo(ray.origin + ray.direction * voxel_t_current, normal, voxel_t_current, true);
+                }
 
-        loop {
-            let bit = flatten(vec3<u32>(voxel_current), vec3<u32>(u32(BRICK_SIZE)));
-            let word = brick_pool[index].occupancy_mask[bit / 32];
-            if (word & (1u << (bit % 32))) != 0 {
-                return HitInfo(ray.origin + ray.direction * voxel_t_current, normal, voxel_t_current, true);
-            }
+                if voxel_t_max.x < voxel_t_max.y && voxel_t_max.x < voxel_t_max.z {
+                    voxel_t_current = voxel_t_max.x;
 
-            if voxel_t_max.x < voxel_t_max.y && voxel_t_max.x < voxel_t_max.z {
-                voxel_t_current = voxel_t_max.x;
+                    voxel_current.x += step.x;
+                    voxel_t_max.x += voxel_t_delta.x;
 
-                voxel_current.x += step.x;
-                voxel_t_max.x += voxel_t_delta.x;
+                    normal = vec3<f32>(0);
+                    normal.x = -f32(step.x);
+                } else if voxel_t_max.y < voxel_t_max.z {
+                    voxel_t_current = voxel_t_max.y;
 
-                normal = vec3<f32>(0);
-                normal.x = -f32(step.x);
-            } else if voxel_t_max.y < voxel_t_max.z {
-                voxel_t_current = voxel_t_max.y;
+                    voxel_current.y += step.y;
+                    voxel_t_max.y += voxel_t_delta.y;
 
-                voxel_current.y += step.y;
-                voxel_t_max.y += voxel_t_delta.y;
+                    normal = vec3<f32>(0);
+                    normal.y = -f32(step.y);
+                } else {
+                    voxel_t_current = voxel_t_max.z;
 
-                normal = vec3<f32>(0);
-                normal.y = -f32(step.y);
-            } else {
-                voxel_t_current = voxel_t_max.z;
+                    voxel_current.z += step.z;
+                    voxel_t_max.z += voxel_t_delta.z;
 
-                voxel_current.z += step.z;
-                voxel_t_max.z += voxel_t_delta.z;
+                    normal = vec3<f32>(0);
+                    normal.z = -f32(step.z);
+                }
 
-                normal = vec3<f32>(0);
-                normal.z = -f32(step.z);
-            }
-
-            if any(voxel_current < vec3<i32>(0)) || any(voxel_current >= vec3<i32>(i32(BRICK_SIZE))) {
-                break;
+                if any(voxel_current < vec3<i32>(0)) || any(voxel_current >= vec3<i32>(i32(BRICK_SIZE))) {
+                    break;
+                }
             }
         }
 

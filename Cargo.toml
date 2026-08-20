@@ -10,6 +10,7 @@ bytemuck = "1.25.1"
 egui = { version = "0.35.0", features = ["persistence"] }
 egui-wgpu = { version = "0.35.0" }
 egui-winit = { version = "0.35.0" }
+fastnoise2 = "0.4.0"
 glam = { version = "0.33.2", features = ["bytemuck"] }
 pollster = "1.0.1"
 tracing = "0.1.44"

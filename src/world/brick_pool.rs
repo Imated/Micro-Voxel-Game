@@ -1,6 +1,7 @@
 use std::ops::{Deref, DerefMut};
 
 use bitvec::{bitvec, order::Lsb0};
+use fastnoise2::SafeNode;
 
 use crate::{
     array_buffer::TypedArrayBuffer,
@@ -46,25 +47,54 @@ impl BrickPool {
         }
     }
 
+    fn map_range(val: f32, in_min: f32, in_max: f32, out_min: f32, out_max: f32) -> f32 {
+        ((val - in_min) * (out_max - out_min)) / (in_max - in_min) + out_min
+    }
+
     pub fn gen_test_chunk(&mut self) -> Chunk {
         let mut chunk = Chunk::new_from_empty();
 
-        const CENTER: usize = 8 * 8 / 2; // chunk size * brick size / 2
-        const RADIUS: usize = 32;
+        let node = SafeNode::from_encoded_node_tree(
+            "KBEIAACArEIEC@AwGtDCCw@BEAgkAAEBwQwgT@BBAs@ADAEw@AEAE",
+        )
+        .unwrap();
+
+        let chunk_voxels_x = (CHUNK_SIZE.x * BRICK_SIZE.x) as usize;
+        let chunk_voxels_z = (CHUNK_SIZE.z * BRICK_SIZE.z) as usize;
+        let max_height = BRICK_SIZE.y as f32;
+
+        let mut noise_out = vec![0.0; chunk_voxels_x * chunk_voxels_z];
+        let min_max = node.gen_uniform_grid_2d(
+            &mut noise_out,
+            0.0,
+            0.0,
+            chunk_voxels_x as i32,
+            chunk_voxels_z as i32,
+            1.0,
+            1.0,
+            6767,
+        );
 
         for bx in 0..8 {
-            for by in 0..8 {
+            for by in 0..1 {
                 for bz in 0..8 {
                     let mut voxels = [[[0; 8]; 8]; 8];
                     let mut occupancy = bitvec!(u32, Lsb0; 0; (BRICK_SIZE.x * BRICK_SIZE.y * BRICK_SIZE.z) as usize);
-                    for (vx, voxels2) in voxels.iter_mut().enumerate() {
-                        for (vy, voxels3) in voxels2.iter_mut().enumerate() {
-                            for (vz, voxel) in voxels3.iter_mut().enumerate() {
-                                let dx = bx * 8 + vx - CENTER;
-                                let dy = by * 8 + vy - CENTER;
-                                let dz = bz * 8 + vz - CENTER;
-                                if dx * dx + dy * dy + dz * dz <= RADIUS * RADIUS {
-                                    *voxel = 1;
+
+                    for vx in 0..BRICK_SIZE.x as usize {
+                        for vz in 0..BRICK_SIZE.z as usize {
+                            let world_x = bx * BRICK_SIZE.x as usize + vx;
+                            let world_z = bz * BRICK_SIZE.z as usize + vz;
+                            let height = Self::map_range(
+                                noise_out[world_z * chunk_voxels_x + world_x],
+                                min_max.min,
+                                min_max.max,
+                                0.0,
+                                max_height,
+                            );
+                            for vy in 0..BRICK_SIZE.y as usize {
+                                if (vy as f32) < height {
+                                    voxels[vx][vy][vz] = 1;
                                     occupancy.set(
                                         flatten(vx as u32, vy as u32, vz as u32, BRICK_SIZE)
                                             as usize,
