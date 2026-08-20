@@ -93,7 +93,8 @@ impl BrickPool {
                         occupancy_mask: occupancy.as_raw_slice().try_into().unwrap(),
                     };
 
-                    chunk.bricks[bx][by][bz] = self.pool.push(brick) as u32;
+                    let brick_index = flatten(bx as u32, by as u32, bz as u32, CHUNK_SIZE);
+                    chunk.bricks[brick_index as usize] = self.pool.push(brick) as u32;
                 }
             }
         }

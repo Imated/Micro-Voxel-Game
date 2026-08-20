@@ -8,7 +8,7 @@ pub struct ChunkPos(pub IVec3);
 #[repr(C)]
 #[derive(Debug, Copy, Clone, Pod, Zeroable)]
 pub struct Chunk {
-    pub bricks: [[[u32; CHUNK_SIZE.x as usize]; CHUNK_SIZE.y as usize]; CHUNK_SIZE.z as usize],
+    pub bricks: [u32; (CHUNK_SIZE.x * CHUNK_SIZE.y * CHUNK_SIZE.z) as usize],
 }
 
 impl Chunk {
@@ -16,14 +16,14 @@ impl Chunk {
     pub fn new_from_full() -> Self {
         Self {
             // slot 1 in brick pool which we just hardcode to full rn
-            bricks: [[[1; CHUNK_SIZE.x as usize]; CHUNK_SIZE.y as usize]; CHUNK_SIZE.z as usize],
+            bricks: [1; (CHUNK_SIZE.x * CHUNK_SIZE.y * CHUNK_SIZE.z) as usize],
         }
     }
 
     pub fn new_from_empty() -> Self {
         Self {
             // slot 0 in brick pool is always empty
-            bricks: [[[0; CHUNK_SIZE.x as usize]; CHUNK_SIZE.y as usize]; CHUNK_SIZE.z as usize],
+            bricks: [0; (CHUNK_SIZE.x * CHUNK_SIZE.y * CHUNK_SIZE.z) as usize],
         }
     }
 }

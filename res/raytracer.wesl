@@ -77,7 +77,7 @@ struct Camera {
 }
 
 struct Chunk {
-    indices: array<array<array<u32, 8>, 8>, 8>
+    indices: array<u32, 512> // 8 * 8 * 8
     //bricks: array<array<array<Brick, 8>, 8>, 8>,
 }
 
@@ -110,7 +110,8 @@ fn get_brick(brick_coords: vec3<i32>) -> u32 {
     let chunk_coord = offsetted_coords / vec3<i32>(i32(CHUNK_SIZE));
     let local_coord = offsetted_coords % vec3<i32>(i32(CHUNK_SIZE));
     let chunk_index = flatten(vec3<u32>(chunk_coord), vec3<u32>(WORLD_SIZE));
-    let index = chunks[chunk_index].indices[local_coord.x][local_coord.y][local_coord.z];
+    let local_index = flatten(vec3<u32>(local_coord), vec3<u32>(u32(BRICK_SIZE)));
+    let index = chunks[chunk_index].indices[local_index];
     if index >= arrayLength(&brick_pool) {
         return 0;
     }
