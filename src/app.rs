@@ -56,9 +56,9 @@ impl App {
         )
         .expect("Failed to crate GPU profiler.");
 
-        for x in 0..8 {
+        for x in -4..4 {
             for y in 0..1 {
-                for z in 0..8 {
+                for z in -4..4 {
                     world_renderer.load_chunk(ChunkPos(ivec3(x, y, z)));
                 }
             }

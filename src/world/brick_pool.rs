@@ -11,7 +11,10 @@ use crate::{
         flatten,
         free_list::FreeList,
     },
-    world::{brick::Brick, chunk::Chunk},
+    world::{
+        brick::Brick,
+        chunk::{Chunk, ChunkPos},
+    },
 };
 
 pub struct BrickPool {
@@ -47,32 +50,24 @@ impl BrickPool {
         }
     }
 
-    fn map_range(val: f32, in_min: f32, in_max: f32, out_min: f32, out_max: f32) -> f32 {
-        ((val - in_min) * (out_max - out_min)) / (in_max - in_min) + out_min
-    }
-
-    pub fn gen_test_chunk(&mut self) -> Chunk {
+    pub fn gen_test_chunk(&mut self, coords: ChunkPos) -> Chunk {
         let mut chunk = Chunk::new_from_empty();
 
-        let node = SafeNode::from_encoded_node_tree(
-            "KBEIAACArEIEC@AwGtDCCw@BEAgkAAEBwQwgT@BBAs@ADAEw@AEAE",
-        )
-        .unwrap();
+        let node = SafeNode::from_encoded_node_tree("KQkIAACArEIEGw@AEEE").unwrap();
 
         let chunk_voxels_x = (CHUNK_SIZE.x * BRICK_SIZE.x) as usize;
         let chunk_voxels_z = (CHUNK_SIZE.z * BRICK_SIZE.z) as usize;
-        let max_height = BRICK_SIZE.y as f32;
 
         let mut noise_out = vec![0.0; chunk_voxels_x * chunk_voxels_z];
-        let min_max = node.gen_uniform_grid_2d(
+        node.gen_uniform_grid_2d(
             &mut noise_out,
-            0.0,
-            0.0,
+            (coords.0.x * CHUNK_SIZE.x as i32 * BRICK_SIZE.x as i32) as f32,
+            (coords.0.z * CHUNK_SIZE.z as i32 * BRICK_SIZE.z as i32) as f32,
             chunk_voxels_x as i32,
             chunk_voxels_z as i32,
             1.0,
             1.0,
-            6767,
+            67676,
         );
 
         for bx in 0..8 {
@@ -85,15 +80,8 @@ impl BrickPool {
                         for vz in 0..BRICK_SIZE.z as usize {
                             let world_x = bx * BRICK_SIZE.x as usize + vx;
                             let world_z = bz * BRICK_SIZE.z as usize + vz;
-                            let height = Self::map_range(
-                                noise_out[world_z * chunk_voxels_x + world_x],
-                                min_max.min,
-                                min_max.max,
-                                0.0,
-                                max_height,
-                            );
                             for vy in 0..BRICK_SIZE.y as usize {
-                                if (vy as f32) < height {
+                                if (vy as f32) < noise_out[world_z * chunk_voxels_x + world_x] {
                                     voxels[vx][vy][vz] = 1;
                                     occupancy.set(
                                         flatten(vx as u32, vy as u32, vz as u32, BRICK_SIZE)

@@ -103,19 +103,15 @@ var<uniform> camera: Camera;
 
 @group(2) @binding(0)
 var output: texture_storage_2d<rgba16float, write>;
-
 fn get_brick(brick_coords: vec3<i32>) -> u32 {
     let offsetted_coords = brick_coords + WORLD_SIZE * vec3<i32>(i32(CHUNK_SIZE)) / 2;
-    let chunk_coord = offsetted_coords / vec3<i32>(i32(CHUNK_SIZE));
-    let local_coord = offsetted_coords % vec3<i32>(i32(CHUNK_SIZE));
-    let chunk_index = flatten(vec3<u32>(chunk_coord), vec3<u32>(WORLD_SIZE));
-    let local_index = flatten(vec3<u32>(local_coord), vec3<u32>(u32(BRICK_SIZE)));
-    let index = chunks[chunk_index].indices[local_index];
-    if index >= arrayLength(&brick_pool) {
-        return 0;
-    }
-
-    return index;
+    return chunks[flatten(
+                    vec3<u32>(offsetted_coords / vec3<i32>(i32(CHUNK_SIZE))),
+                    vec3<u32>(WORLD_SIZE)
+                )].indices[flatten(
+                    vec3<u32>(offsetted_coords % vec3<i32>(i32(CHUNK_SIZE))),
+                    vec3<u32>(u32(BRICK_SIZE))
+                        )];
 }
 
 fn is_brick_in_bounds(coords: vec3<i32>) -> bool {
@@ -216,9 +212,11 @@ fn trace_ray(ray: Ray) -> HitInfo {
             var voxel_t_max = select(vec3<f32>(INFINITY), t_current + (voxel_cb - local_grid_pos) * inv_dir, step != vec3<i32>(0));
             var voxel_t_current = t_current;
 
+            let occupancy_mask = brick_pool[index].occupancy_mask;
+
             loop {
                 let bit = flatten(vec3<u32>(voxel_current), vec3<u32>(u32(BRICK_SIZE)));
-                let word = brick_pool[index].occupancy_mask[bit / 32];
+                let word = occupancy_mask[bit / 32];
                 if (word & (1u << (bit % 32))) != 0 {
                     return HitInfo(ray.origin + ray.direction * voxel_t_current, normal, voxel_t_current, true);
                 }
@@ -260,25 +258,16 @@ fn trace_ray(ray: Ray) -> HitInfo {
 
             current_brick.x += step.x;
             t_max.x += t_delta.x;
-
-            normal = vec3<f32>(0);
-            normal.x = -f32(step.x);
         } else if t_max.y < t_max.z {
             t_current = t_max.y;
 
             current_brick.y += step.y;
             t_max.y += t_delta.y;
-
-            normal = vec3<f32>(0);
-            normal.y = -f32(step.y);
         } else {
             t_current = t_max.z;
 
             current_brick.z += step.z;
             t_max.z += t_delta.z;
-
-            normal = vec3<f32>(0);
-            normal.z = -f32(step.z);
         }
     }
 

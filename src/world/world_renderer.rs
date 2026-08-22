@@ -81,7 +81,7 @@ impl WorldRenderer {
         let offsetted_coords = coords.0 + WORLD_SIZE_HALF.as_ivec3();
         let index = (offsetted_coords.rem_euclid(WORLD_SIZE.as_ivec3())).as_uvec3();
         self.chunk_grid[flatten(index.x, index.y, index.z, WORLD_SIZE) as usize] =
-            self.brick_pool.gen_test_chunk();
+            self.brick_pool.gen_test_chunk(coords);
         self.is_dirty = true;
     }
 

@@ -11,6 +11,7 @@ use winit::dpi::PhysicalSize;
 use winit::event::{DeviceEvent, DeviceId, KeyEvent, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::PhysicalKey::Code;
+use winit::window::Fullscreen::Borderless;
 use winit::window::{Window, WindowAttributes, WindowId};
 
 mod app;
@@ -44,6 +45,7 @@ impl ApplicationHandler for AppRunner {
                 .create_window(
                     WindowAttributes::default()
                         .with_title("ea")
+                        .with_fullscreen(Some(Borderless(None)))
                         .with_inner_size(PhysicalSize::new(800, 600)),
                 )
                 .unwrap(),

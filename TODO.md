@@ -1,7 +1,7 @@
 # TODO
-- share bricks
+- ~~share bricks~~
 - svgf for denoising https://github.com/jacquespillet/SVGF
-- occupancy map?
+- ~~occupancy map?~~
 - chunk loading/unload when camera moves
 - 3d textures?
 - terrain gen
