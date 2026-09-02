@@ -1,14 +1,13 @@
-use crate::camera::Camera;
 use crate::display::Frame;
 use crate::render_context::RenderContext;
 use crate::world::world_renderer::WorldRenderer;
+use crate::{camera::Camera, util::pipeline::HotReloadPipeline};
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
     BindGroupLayoutEntry, BindingResource, BindingType, ComputePassDescriptor, ComputePipeline,
-    ComputePipelineDescriptor, Extent3d, PipelineCompilationOptions, PipelineLayoutDescriptor,
-    ShaderStages, StorageTextureAccess, Texture, TextureDescriptor, TextureDimension,
-    TextureFormat, TextureUsages, TextureView, TextureViewDescriptor, TextureViewDimension,
-    include_wgsl,
+    Extent3d, PipelineLayoutDescriptor, ShaderStages, StorageTextureAccess, Texture,
+    TextureDescriptor, TextureDimension, TextureFormat, TextureUsages, TextureView,
+    TextureViewDescriptor, TextureViewDimension,
 };
 
 pub struct RenderTexture {
@@ -23,6 +22,7 @@ impl RenderTexture {
 }
 
 impl RenderTexture {
+    #[must_use]
     pub fn new(context: &RenderContext, width: u32, height: u32) -> Self {
         let output = context.device.create_texture(&TextureDescriptor {
             label: Some("Output Texture"),
@@ -34,7 +34,7 @@ impl RenderTexture {
             mip_level_count: 1,
             sample_count: 1,
             dimension: TextureDimension::D2,
-            format: RenderTexture::FORMAT,
+            format: Self::FORMAT,
             usage: TextureUsages::STORAGE_BINDING | TextureUsages::TEXTURE_BINDING,
             view_formats: &[],
         });
@@ -50,14 +50,16 @@ impl RenderTexture {
 }
 
 pub struct Renderer {
-    pipeline: ComputePipeline,
+    context: RenderContext,
+    pipeline: HotReloadPipeline<ComputePipeline>,
     bind_group_layout: BindGroupLayout,
     bind_group: BindGroup,
 }
 
 impl Renderer {
+    #[must_use]
     pub fn new(
-        context: &RenderContext,
+        context: RenderContext,
         output: &RenderTexture,
         camera: &Camera,
         world_renderer: &WorldRenderer,
@@ -79,11 +81,7 @@ impl Renderer {
                     }],
                 });
 
-        let bind_group = Self::create_bind_group(context, &bind_group_layout, &output.output_view);
-
-        let shader = context
-            .device
-            .create_shader_module(include_wgsl!(".././res/compiled/raytracer.wgsl"));
+        let bind_group = Self::create_bind_group(&context, &bind_group_layout, &output.output_view);
         let layout = context
             .device
             .create_pipeline_layout(&PipelineLayoutDescriptor {
@@ -95,27 +93,19 @@ impl Renderer {
                 ],
                 immediate_size: 0,
             });
-
-        let pipeline = context
-            .device
-            .create_compute_pipeline(&ComputePipelineDescriptor {
-                label: Some("Raytracing Pipeline"),
-                layout: Some(&layout),
-                module: &shader,
-                entry_point: None,
-                compilation_options: PipelineCompilationOptions::default(),
-                cache: None,
-            });
+        let pipeline = HotReloadPipeline::new(&context, layout, "raytracer").unwrap();
 
         Self {
+            context,
             pipeline,
             bind_group_layout,
             bind_group,
         }
     }
 
-    pub fn resize(&mut self, context: &RenderContext, output_view: &TextureView) {
-        self.bind_group = Self::create_bind_group(context, &self.bind_group_layout, output_view);
+    pub fn resize(&mut self, output_view: &TextureView) {
+        self.bind_group =
+            Self::create_bind_group(&self.context, &self.bind_group_layout, output_view);
     }
 
     pub fn raytrace_pass(
@@ -131,8 +121,7 @@ impl Renderer {
         });
 
         let mut compute_pass = frame.profiler.scope("Raytracing", &mut compute_pass);
-
-        compute_pass.set_pipeline(&self.pipeline);
+        compute_pass.set_pipeline(&self.pipeline.acquire());
         compute_pass.set_bind_group(0, world_renderer.bind_group(), &[]);
         compute_pass.set_bind_group(1, camera.get_bind_group(), &[]);
         compute_pass.set_bind_group(2, &self.bind_group, &[]);

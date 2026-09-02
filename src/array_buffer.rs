@@ -14,36 +14,44 @@ pub struct TypedArrayBuffer<T: Pod + Zeroable> {
     buffer_type: BufferBindingType,
     len: usize,
     _t: PhantomData<T>,
+    context: RenderContext,
 }
 
 impl<T: Pod + Zeroable> TypedArrayBuffer<T> {
-    pub fn new_uniform(context: &RenderContext, data: &[T]) -> Self {
+    pub fn new_uniform(context: RenderContext, data: &[T]) -> Self {
         Self {
             inner: Self::create_buffer(
-                context,
+                &context,
                 data,
                 BufferUsages::UNIFORM | BufferUsages::COPY_DST,
             ),
             buffer_type: BufferBindingType::Uniform,
             _t: PhantomData,
             len: data.len(),
+            context,
         }
     }
 
-    pub fn new_storage(context: &RenderContext, data: &[T]) -> Self {
+    pub fn new_storage(context: RenderContext, data: &[T]) -> Self {
         Self {
             inner: Self::create_buffer(
-                context,
+                &context,
                 data,
                 BufferUsages::STORAGE | BufferUsages::COPY_DST,
             ),
             buffer_type: BufferBindingType::Storage { read_only: true },
             _t: PhantomData,
             len: data.len(),
+            context,
         }
     }
 
-    pub fn as_layout_entry(&self, binding: u32, visibility: ShaderStages) -> BindGroupLayoutEntry {
+    #[must_use]
+    pub const fn as_layout_entry(
+        &self,
+        binding: u32,
+        visibility: ShaderStages,
+    ) -> BindGroupLayoutEntry {
         BindGroupLayoutEntry {
             binding,
             visibility,
@@ -56,6 +64,7 @@ impl<T: Pod + Zeroable> TypedArrayBuffer<T> {
         }
     }
 
+    #[must_use]
     pub fn as_bind_group_entry(&self, binding: u32) -> BindGroupEntry<'_> {
         BindGroupEntry {
             binding,
@@ -63,17 +72,22 @@ impl<T: Pod + Zeroable> TypedArrayBuffer<T> {
         }
     }
 
-    pub fn update(&mut self, context: &RenderContext, data: &[T]) -> bool {
+    pub fn update(&mut self, data: &[T]) -> bool {
         if data.len() > self.len {
             //resize buffer
-            self.inner = context.device.create_buffer_init(&BufferInitDescriptor {
-                label: Some(type_name::<T>()),
-                usage: self.inner.usage(),
-                contents: cast_slice(data),
-            });
+            self.inner = self
+                .context
+                .device
+                .create_buffer_init(&BufferInitDescriptor {
+                    label: Some(type_name::<T>()),
+                    usage: self.inner.usage(),
+                    contents: cast_slice(data),
+                });
             return true;
         }
-        context.queue.write_buffer(&self.inner, 0, cast_slice(data));
+        self.context
+            .queue
+            .write_buffer(&self.inner, 0, cast_slice(data));
         false
     }
 

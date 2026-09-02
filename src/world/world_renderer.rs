@@ -11,23 +11,27 @@ use wgpu::{
 };
 
 pub struct WorldRenderer {
+    context: RenderContext,
+
     pub brick_pool: BrickPool,
-    chunk_grid: [Chunk; (WORLD_SIZE.x * WORLD_SIZE.y * WORLD_SIZE.z) as usize],
+    chunk_grid: Box<[Chunk]>,
     // 32x1x32 chunk grid, eventually somehow get this from World struct,
     // oh and also to future me, make ts separate from the World struct Chunk type bc this chunk sohuld be like GpuChunk and store brick map and stuff idk u got this
-    chunks: TypedArrayBuffer<[Chunk; (WORLD_SIZE.x * WORLD_SIZE.y * WORLD_SIZE.z) as usize]>,
+    chunks: TypedArrayBuffer<Chunk>,
     chunks_layout: BindGroupLayout,
     chunks_bind_group: BindGroup,
     is_dirty: bool,
 }
 
 impl WorldRenderer {
-    pub fn new(context: &RenderContext) -> Self {
+    #[must_use]
+    pub fn new(context: RenderContext) -> Self {
         let chunk_grid =
-            [Chunk::new_from_empty(); (WORLD_SIZE.x * WORLD_SIZE.y * WORLD_SIZE.z) as usize];
-        let buffer = TypedArrayBuffer::new_storage(context, &[chunk_grid]);
+            vec![Chunk::new_from_empty(); (WORLD_SIZE.x * WORLD_SIZE.y * WORLD_SIZE.z) as usize]
+                .into_boxed_slice();
 
-        let brick_pool = BrickPool::new(context);
+        let buffer = TypedArrayBuffer::new_storage(context.clone(), &chunk_grid);
+        let brick_pool = BrickPool::new(&context);
 
         let layout = context
             .device
@@ -54,20 +58,21 @@ impl WorldRenderer {
             chunks_bind_group: bind_group,
             chunk_grid,
             is_dirty: false,
+            context,
         }
     }
 
-    pub fn update(&mut self, context: &RenderContext) {
+    pub fn update(&mut self) {
         if self.is_dirty {
-            self.chunks.update(context, &[self.chunk_grid]);
+            self.chunks.update(&self.chunk_grid);
             self.is_dirty = false;
         }
 
-        if !self.brick_pool.update(context) {
+        if !self.brick_pool.update() {
             return;
         }
 
-        self.chunks_bind_group = context.device.create_bind_group(&BindGroupDescriptor {
+        self.chunks_bind_group = self.context.device.create_bind_group(&BindGroupDescriptor {
             label: Some("World Renderer Bind Group"),
             layout: self.layout(),
             entries: &[
@@ -77,7 +82,7 @@ impl WorldRenderer {
         });
     }
 
-    pub fn load_chunk(&mut self, coords: ChunkPos) {
+    pub fn load_chunk(&mut self, coords: &ChunkPos) {
         let offsetted_coords = coords.0 + WORLD_SIZE_HALF.as_ivec3();
         let index = (offsetted_coords.rem_euclid(WORLD_SIZE.as_ivec3())).as_uvec3();
         self.chunk_grid[flatten(index.x, index.y, index.z, WORLD_SIZE) as usize] =
@@ -85,7 +90,7 @@ impl WorldRenderer {
         self.is_dirty = true;
     }
 
-    pub fn unload_chunk(&mut self, coords: ChunkPos) {
+    pub fn unload_chunk(&mut self, coords: &ChunkPos) {
         let offsetted_coords = coords.0 + WORLD_SIZE_HALF.as_ivec3();
         let index = (offsetted_coords.rem_euclid(WORLD_SIZE.as_ivec3())).as_uvec3();
         self.chunk_grid[flatten(index.x, index.y, index.z, WORLD_SIZE) as usize] =
@@ -93,11 +98,13 @@ impl WorldRenderer {
         self.is_dirty = true;
     }
 
-    pub fn layout(&self) -> &BindGroupLayout {
+    #[must_use]
+    pub const fn layout(&self) -> &BindGroupLayout {
         &self.chunks_layout
     }
 
-    pub fn bind_group(&self) -> &BindGroup {
+    #[must_use]
+    pub const fn bind_group(&self) -> &BindGroup {
         &self.chunks_bind_group
     }
 }

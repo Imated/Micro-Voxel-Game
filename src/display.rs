@@ -1,22 +1,23 @@
 use crate::render_context::RenderContext;
 use std::num::NonZeroU32;
 use std::sync::Arc;
-use wgpu::wgt::CommandEncoderDescriptor;
 use wgpu::{
-    CommandEncoder, CurrentSurfaceTexture, PresentMode, Surface, SurfaceConfiguration,
-    SurfaceTexture, TextureFormat, TextureUsages, TextureView, TextureViewDescriptor,
+    CommandEncoder, CommandEncoderDescriptor, CurrentSurfaceTexture, PresentMode, Surface,
+    SurfaceConfiguration, SurfaceTexture, TextureFormat, TextureUsages, TextureView,
+    TextureViewDescriptor,
 };
 use wgpu_profiler::GpuProfiler;
 use winit::window::Window;
 
 pub struct Display {
+    context: RenderContext,
     surface: Surface<'static>,
     surface_config: SurfaceConfiguration,
     is_surface_configured: bool,
 }
 
 impl Display {
-    pub fn new(context: &RenderContext, window: Arc<Window>) -> anyhow::Result<Self> {
+    pub fn new(context: RenderContext, window: &Arc<Window>) -> anyhow::Result<Self> {
         let size = window.inner_size();
         let surface = context.instance.create_surface(window.clone())?;
 
@@ -43,26 +44,23 @@ impl Display {
             surface,
             surface_config: config,
             is_surface_configured: false,
+            context,
         })
     }
 
-    pub fn resize(&mut self, context: &RenderContext, width: NonZeroU32, height: NonZeroU32) {
+    pub fn resize(&mut self, width: NonZeroU32, height: NonZeroU32) {
         let width = width.get();
         let height = height.get();
 
         self.surface_config.width = width;
         self.surface_config.height = height;
         self.surface
-            .configure(&context.device, &self.surface_config);
+            .configure(&self.context.device, &self.surface_config);
 
         self.is_surface_configured = true;
     }
 
-    pub fn acquire_frame<'a>(
-        &self,
-        context: &RenderContext,
-        profiler: &'a GpuProfiler,
-    ) -> Option<Frame<'a>> {
+    pub fn acquire_frame<'a>(&self, profiler: &'a GpuProfiler) -> Option<Frame<'a>> {
         if !self.is_surface_configured {
             return None;
         }
@@ -78,7 +76,7 @@ impl Display {
 
             CurrentSurfaceTexture::Outdated => {
                 self.surface
-                    .configure(&context.device, &self.surface_config);
+                    .configure(&self.context.device, &self.surface_config);
                 return None;
             }
         };
@@ -90,14 +88,15 @@ impl Display {
         Some(Frame {
             surface_texture: output,
             surface_view: view,
-            encoder: context
+            encoder: self
+                .context
                 .device
                 .create_command_encoder(&CommandEncoderDescriptor::default()),
             profiler,
         })
     }
 
-    pub fn surface_format(&self) -> TextureFormat {
+    pub const fn surface_format(&self) -> TextureFormat {
         self.surface_config.format
     }
 }

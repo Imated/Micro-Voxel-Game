@@ -13,14 +13,16 @@ pub struct Chunk {
 
 impl Chunk {
     // test fn to create a chunk thats entirely filled with stuff
-    pub fn new_from_full() -> Self {
+    #[must_use]
+    pub const fn new_from_full() -> Self {
         Self {
             // slot 1 in brick pool which we just hardcode to full rn
             bricks: [1; (CHUNK_SIZE.x * CHUNK_SIZE.y * CHUNK_SIZE.z) as usize],
         }
     }
 
-    pub fn new_from_empty() -> Self {
+    #[must_use]
+    pub const fn new_from_empty() -> Self {
         Self {
             // slot 0 in brick pool is always empty
             bricks: [0; (CHUNK_SIZE.x * CHUNK_SIZE.y * CHUNK_SIZE.z) as usize],

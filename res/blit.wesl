@@ -1,5 +1,3 @@
-import lygia::color::tonemap::aces::tonemapACES4;
-
 struct VertexOutput {
     @builtin(position)
     clip_position: vec4<f32>,

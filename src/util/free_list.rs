@@ -33,7 +33,7 @@ impl<T> Default for FreeList<T> {
 
 impl<T> DerefMut for FreeList<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.slots[0..self.greatest_used_index + 1]
+        &mut self.slots[0..=self.greatest_used_index]
     }
 }
 
@@ -41,7 +41,7 @@ impl<T> Deref for FreeList<T> {
     type Target = [T];
 
     fn deref(&self) -> &Self::Target {
-        &self.slots[0..self.greatest_used_index + 1]
+        &self.slots[0..=self.greatest_used_index]
     }
 }
 
@@ -85,11 +85,13 @@ impl<T: Default + PartialEq> FreeList<T> {
         None
     }
 
-    pub fn greatest_used_index(&self) -> usize {
+    #[must_use]
+    pub const fn greatest_used_index(&self) -> usize {
         self.greatest_used_index
     }
 
-    pub fn reserved_slots(&self) -> &BitVec {
+    #[must_use]
+    pub const fn reserved_slots(&self) -> &BitVec {
         &self.reserved
     }
 }

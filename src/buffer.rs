@@ -12,35 +12,43 @@ use wgpu::{
 pub struct TypedBuffer<T: Pod + Zeroable> {
     inner: Buffer,
     buffer_type: BufferBindingType,
+    context: RenderContext,
     _t: PhantomData<T>,
 }
 
 impl<T: Pod + Zeroable> TypedBuffer<T> {
-    pub fn new_uniform(context: &RenderContext, data: T) -> Self {
+    pub fn new_uniform(context: RenderContext, data: T) -> Self {
         Self {
             inner: Self::create_buffer(
-                context,
+                &context,
                 data,
                 BufferUsages::UNIFORM | BufferUsages::COPY_DST,
             ),
             buffer_type: BufferBindingType::Uniform,
             _t: PhantomData,
+            context,
         }
     }
 
-    pub fn new_storage(context: &RenderContext, data: T) -> Self {
+    pub fn new_storage(context: RenderContext, data: T) -> Self {
         Self {
             inner: Self::create_buffer(
-                context,
+                &context,
                 data,
                 BufferUsages::STORAGE | BufferUsages::COPY_DST,
             ),
             buffer_type: BufferBindingType::Storage { read_only: true },
             _t: PhantomData,
+            context,
         }
     }
 
-    pub fn as_layout_entry(&self, binding: u32, visibility: ShaderStages) -> BindGroupLayoutEntry {
+    #[must_use]
+    pub const fn as_layout_entry(
+        &self,
+        binding: u32,
+        visibility: ShaderStages,
+    ) -> BindGroupLayoutEntry {
         BindGroupLayoutEntry {
             binding,
             visibility,
@@ -53,6 +61,7 @@ impl<T: Pod + Zeroable> TypedBuffer<T> {
         }
     }
 
+    #[must_use]
     pub fn as_bind_group_entry(&self, binding: u32) -> BindGroupEntry<'_> {
         BindGroupEntry {
             binding,
@@ -60,8 +69,8 @@ impl<T: Pod + Zeroable> TypedBuffer<T> {
         }
     }
 
-    pub fn update(&self, context: &RenderContext, data: T) {
-        context
+    pub fn update(&self, data: T) {
+        self.context
             .queue
             .write_buffer(&self.inner, 0, cast_slice(&[data]));
     }

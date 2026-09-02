@@ -1,7 +1,10 @@
 use std::ops::{Deref, DerefMut};
 
 use bitvec::{bitvec, order::Lsb0};
-use fastnoise2::SafeNode;
+use fastnoise2::{
+    SafeNode,
+    generator::{Generator, simplex::Simplex},
+};
 
 use crate::{
     array_buffer::TypedArrayBuffer,
@@ -38,10 +41,11 @@ impl Deref for BrickPool {
 }
 
 impl BrickPool {
+    #[must_use]
     pub fn new(context: &RenderContext) -> Self {
         let mut pool = FreeList::default();
         pool.push(Brick::default()); // index 0 always empty
-        let buffer = TypedArrayBuffer::new_storage(context, &pool);
+        let buffer = TypedArrayBuffer::new_storage(context.clone(), &pool);
 
         Self {
             pool,
@@ -50,10 +54,11 @@ impl BrickPool {
         }
     }
 
-    pub fn gen_test_chunk(&mut self, coords: ChunkPos) -> Chunk {
+    pub fn gen_test_chunk(&mut self, coords: &ChunkPos) -> Chunk {
         let mut chunk = Chunk::new_from_empty();
 
-        let node = SafeNode::from_encoded_node_tree("KQkIAACArEIEGw@AEEE").unwrap();
+        let node = SafeNode::from_encoded_node_tree("KQkIAACArEIEGw@AEEE")
+            .unwrap_or_else(|_| Simplex::default().build().0);
 
         let chunk_voxels_x = (CHUNK_SIZE.x * BRICK_SIZE.x) as usize;
         let chunk_voxels_z = (CHUNK_SIZE.z * BRICK_SIZE.z) as usize;
@@ -71,7 +76,7 @@ impl BrickPool {
         );
 
         for bx in 0..8 {
-            for by in 0..1 {
+            for by in 0..1usize {
                 for bz in 0..8 {
                     let mut voxels = [[[0; 8]; 8]; 8];
                     let mut occupancy = bitvec!(u32, Lsb0; 0; (BRICK_SIZE.x * BRICK_SIZE.y * BRICK_SIZE.z) as usize);
@@ -108,7 +113,7 @@ impl BrickPool {
 
                     let brick = Brick {
                         voxels: flattened_voxels,
-                        occupancy_mask: occupancy.as_raw_slice().try_into().unwrap(),
+                        occupancy_mask: occupancy.as_raw_slice().try_into().unwrap_or_default(),
                     };
 
                     let brick_index = flatten(bx as u32, by as u32, bz as u32, CHUNK_SIZE);
@@ -123,18 +128,20 @@ impl BrickPool {
     }
 
     /// Returns if the update did smth, false if it wasnt dirty.
-    pub fn update(&mut self, context: &RenderContext) -> bool {
+    pub fn update(&mut self) -> bool {
         if !self.is_dirty {
             return false;
         }
         self.is_dirty = false;
-        self.buffer.update(context, &self.pool)
+        self.buffer.update(&self.pool)
     }
 
-    pub fn len(&self) -> usize {
+    #[must_use]
+    pub const fn len(&self) -> usize {
         self.pool.greatest_used_index() + 1
     }
 
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.pool.reserved_slots().not_any()
     }

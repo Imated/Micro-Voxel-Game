@@ -1,30 +1,24 @@
-use crate::display::Frame;
 use crate::render_context::RenderContext;
 use crate::renderer::RenderTexture;
+use crate::{display::Frame, util::pipeline::HotReloadPipeline};
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
-    BindGroupLayoutEntry, BindingResource, BindingType, BlendState, ColorTargetState, ColorWrites,
-    FilterMode, FragmentState, FrontFace, LoadOp, LoadOpDontCare, MultisampleState, Operations,
-    PipelineCompilationOptions, PipelineLayoutDescriptor, PolygonMode, PrimitiveState,
-    PrimitiveTopology, RenderPassColorAttachment, RenderPassDescriptor, RenderPipeline,
-    RenderPipelineDescriptor, Sampler, SamplerBindingType, SamplerDescriptor, ShaderStages,
-    StoreOp, TextureFormat, TextureSampleType, TextureView, TextureViewDimension, VertexState,
-    include_wgsl,
+    BindGroupLayoutEntry, BindingResource, BindingType, FilterMode, LoadOp, LoadOpDontCare,
+    Operations, PipelineLayoutDescriptor, RenderPassColorAttachment, RenderPassDescriptor,
+    RenderPipeline, Sampler, SamplerBindingType, SamplerDescriptor, ShaderStages, StoreOp,
+    TextureSampleType, TextureView, TextureViewDimension,
 };
 
 pub struct Blitter {
-    pipeline: RenderPipeline,
+    context: RenderContext,
+    pipeline: HotReloadPipeline<RenderPipeline>,
     sampler: Sampler,
     bind_group_layout: BindGroupLayout,
     bind_group: BindGroup,
 }
 
 impl Blitter {
-    pub fn new(
-        context: &RenderContext,
-        source: &RenderTexture,
-        dest_format: TextureFormat,
-    ) -> Self {
+    pub fn new(context: RenderContext, source: &RenderTexture) -> Self {
         let bind_group_layout =
             context
                 .device
@@ -58,11 +52,8 @@ impl Blitter {
         });
 
         let bind_group =
-            Self::create_bind_group(context, &bind_group_layout, &sampler, &source.output_view);
+            Self::create_bind_group(&context, &bind_group_layout, &sampler, &source.output_view);
 
-        let shader = context
-            .device
-            .create_shader_module(include_wgsl!(".././res/compiled/blit.wgsl"));
         let layout = context
             .device
             .create_pipeline_layout(&PipelineLayoutDescriptor {
@@ -70,47 +61,10 @@ impl Blitter {
                 bind_group_layouts: &[Some(&bind_group_layout)],
                 immediate_size: 0,
             });
-        let pipeline = context
-            .device
-            .create_render_pipeline(&RenderPipelineDescriptor {
-                label: Some("Blit Pipeline"),
-                layout: Some(&layout),
-                vertex: VertexState {
-                    module: &shader,
-                    entry_point: Some("vs_main"),
-                    compilation_options: PipelineCompilationOptions::default(),
-                    buffers: &[],
-                },
-                fragment: Some(FragmentState {
-                    module: &shader,
-                    entry_point: Some("fs_main"),
-                    compilation_options: PipelineCompilationOptions::default(),
-                    targets: &[Some(ColorTargetState {
-                        format: dest_format,
-                        blend: Some(BlendState::REPLACE),
-                        write_mask: ColorWrites::ALL,
-                    })],
-                }),
-                primitive: PrimitiveState {
-                    topology: PrimitiveTopology::TriangleList,
-                    strip_index_format: None,
-                    front_face: FrontFace::Ccw,
-                    cull_mode: None,
-                    unclipped_depth: false,
-                    polygon_mode: PolygonMode::Fill,
-                    conservative: false,
-                },
-                depth_stencil: None,
-                multisample: MultisampleState {
-                    count: 1,
-                    mask: !0,
-                    alpha_to_coverage_enabled: false,
-                },
-                multiview_mask: None,
-                cache: None,
-            });
+        let pipeline = HotReloadPipeline::new(&context, layout, "blit").unwrap();
 
         Self {
+            context,
             pipeline,
             sampler,
             bind_group_layout,
@@ -118,9 +72,13 @@ impl Blitter {
         }
     }
 
-    pub fn resize(&mut self, context: &RenderContext, source_view: &TextureView) {
-        self.bind_group =
-            Self::create_bind_group(context, &self.bind_group_layout, &self.sampler, source_view);
+    pub fn resize(&mut self, source_view: &TextureView) {
+        self.bind_group = Self::create_bind_group(
+            &self.context,
+            &self.bind_group_layout,
+            &self.sampler,
+            source_view,
+        );
     }
 
     pub fn blit(&self, frame: &mut Frame) {
@@ -143,7 +101,7 @@ impl Blitter {
 
         let mut render_pass = frame.profiler.scope("Blit", &mut render_pass);
 
-        render_pass.set_pipeline(&self.pipeline);
+        render_pass.set_pipeline(&self.pipeline.acquire());
         render_pass.set_bind_group(0, &self.bind_group, &[]);
         render_pass.draw(0..3, 0..1);
     }

@@ -11,13 +11,15 @@ use wgpu::{
 use winit::{event::WindowEvent, window::Window};
 
 pub struct GuiRenderer {
+    context: RenderContext,
     state: egui_winit::State,
     renderer: Renderer,
     window: Arc<Window>,
 }
 
 impl GuiRenderer {
-    pub fn new(context: &RenderContext, window: Arc<Window>, format: TextureFormat) -> Self {
+    #[must_use]
+    pub fn new(context: RenderContext, window: Arc<Window>, format: TextureFormat) -> Self {
         let egui_context = Context::default();
 
         let egui_state = egui_winit::State::new(
@@ -35,6 +37,7 @@ impl GuiRenderer {
             state: egui_state,
             renderer: egui_renderer,
             window,
+            context,
         }
     }
 
@@ -42,7 +45,7 @@ impl GuiRenderer {
         self.state.on_window_event(&self.window, event)
     }
 
-    pub fn run(&mut self, frame: &mut Frame, context: &RenderContext, ui: impl FnMut(&mut Ui)) {
+    pub fn run(&mut self, frame: &mut Frame, ui: impl FnMut(&mut Ui)) {
         let raw_input = self.state.take_egui_input(&self.window);
         let full_output = self.state.egui_ctx().run_ui(raw_input, ui);
 
@@ -64,12 +67,16 @@ impl GuiRenderer {
             .egui()
             .tessellate(full_output.shapes, full_output.pixels_per_point);
         for (id, image_delta) in &full_output.textures_delta.set {
-            self.renderer
-                .update_texture(&context.device, &context.queue, *id, image_delta);
+            self.renderer.update_texture(
+                &self.context.device,
+                &self.context.queue,
+                *id,
+                image_delta,
+            );
         }
         self.renderer.update_buffers(
-            &context.device,
-            &context.queue,
+            &self.context.device,
+            &self.context.queue,
             &mut frame.encoder,
             &tris,
             &screen_descriptor,
@@ -104,6 +111,7 @@ impl GuiRenderer {
         }
     }
 
+    #[must_use]
     pub fn egui(&self) -> &Context {
         self.state.egui_ctx()
     }

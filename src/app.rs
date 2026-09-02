@@ -4,8 +4,7 @@ use crate::display::{Display, Frame};
 use crate::gui_renderer::GuiRenderer;
 use crate::render_context::RenderContext;
 use crate::renderer::{RenderTexture, Renderer};
-use crate::world::chunk::ChunkPos;
-use crate::world::world_renderer::WorldRenderer;
+use crate::world::{chunk::ChunkPos, world_renderer::WorldRenderer};
 use egui::{Align2, Color32, FontId, RichText, Sense, vec2};
 use glam::{Vec2, Vec3, ivec3};
 use std::num::NonZeroU32;
@@ -29,23 +28,24 @@ pub struct App {
     gui_renderer: GuiRenderer,
     profiler: GpuProfiler,
 
-    profiled_passes: [(&'static str, f64); 3],
+    profiled_passes: [(&'static str, f32); 3],
 }
 
 impl App {
     pub fn new(window: Arc<Window>) -> Self {
         let context = pollster::block_on(RenderContext::new()).expect("Failed to create renderer.");
-        let display = Display::new(&context, window.clone()).expect("Failed to create display.");
+        let display = Display::new(context.clone(), &window).expect("Failed to create display.");
         let output = RenderTexture::new(
             &context,
             window.inner_size().width,
             window.inner_size().height,
         );
         let camera = Camera::new(&context, Vec3::splat(0.0), 0.0_f32, 0.0_f32);
-        let mut world_renderer = WorldRenderer::new(&context);
-        let renderer = Renderer::new(&context, &output, &camera, &world_renderer);
-        let blitter = Blitter::new(&context, &output, display.surface_format());
-        let gui_renderer = GuiRenderer::new(&context, window.clone(), display.surface_format());
+        let mut world_renderer = WorldRenderer::new(context.clone());
+        let renderer = Renderer::new(context.clone(), &output, &camera, &world_renderer);
+        let blitter = Blitter::new(context.clone(), &output);
+        let gui_renderer =
+            GuiRenderer::new(context.clone(), window.clone(), display.surface_format());
         let profiler = GpuProfiler::new(
             &context.device,
             GpuProfilerSettings {
@@ -59,7 +59,7 @@ impl App {
         for x in -4..4 {
             for y in 0..1 {
                 for z in -4..4 {
-                    world_renderer.load_chunk(ChunkPos(ivec3(x, y, z)));
+                    world_renderer.load_chunk(&ChunkPos(ivec3(x, y, z)));
                 }
             }
         }
@@ -83,18 +83,18 @@ impl App {
 
     pub fn render(&mut self, delta_time: Duration) {
         // acquire frame and skip if smth happened and hope it works next frame
-        let Some(mut frame) = self.display.acquire_frame(&self.context, &self.profiler) else {
+        let Some(mut frame) = self.display.acquire_frame(&self.profiler) else {
             return;
         };
 
-        self.camera.update(&self.context, delta_time);
-        self.world_renderer.update(&self.context);
+        self.camera.update(delta_time);
+        self.world_renderer.update();
         self.renderer
             .raytrace_pass(&mut frame, &self.output, &self.camera, &self.world_renderer);
         self.blitter.blit(&mut frame);
 
         // UI
-        self.gui_renderer.run(&mut frame, &self.context, |ui| {
+        self.gui_renderer.run(&mut frame, |ui| {
             ui.style_mut().animation_time = 0.0;
 
             egui::Window::new("Profiler")
@@ -103,7 +103,7 @@ impl App {
                 .collapsible(false)
                 .title_bar(false)
                 .show(ui, |ui| {
-                    let total: f32 = self.profiled_passes.iter().map(|(_, t)| *t as f32).sum();
+                    let total: f32 = self.profiled_passes.iter().map(|(_, t)| *t).sum();
                     let bar_width = 240.0;
 
                     ui.label(
@@ -132,11 +132,7 @@ impl App {
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing.x = 2.0;
                         for (name, time) in self.profiled_passes {
-                            let fraction = if total > 0.0 {
-                                time as f32 / total
-                            } else {
-                                0.0
-                            };
+                            let fraction = if total > 0.0 { time / total } else { 0.0 };
                             let box_width = (bar_width * fraction).max(40.0);
                             let (rect, _) =
                                 ui.allocate_exact_size(vec2(box_width, 40.0), Sense::empty());
@@ -152,7 +148,7 @@ impl App {
                             ui.painter().text(
                                 rect.center() + vec2(0.0, 7.0),
                                 Align2::CENTER_CENTER,
-                                format!("{:.2} ms", time),
+                                format!("{time:.2} ms"),
                                 FontId::proportional(10.0),
                                 Color32::BLACK,
                             );
@@ -182,17 +178,16 @@ impl App {
         {
             for (i, profiling_pass) in profiling_data.iter().enumerate() {
                 let time = profiling_pass.time.as_ref().unwrap();
-                self.profiled_passes[i].1 = (time.end - time.start) * 1000.0;
+                self.profiled_passes[i].1 = ((time.end - time.start) * 1000.0) as f32;
             }
         }
     }
 
     pub fn on_resize(&mut self, width: NonZeroU32, height: NonZeroU32) {
         self.output = RenderTexture::new(&self.context, width.get(), height.get());
-        self.display.resize(&self.context, width, height);
-        self.renderer
-            .resize(&self.context, &self.output.output_view);
-        self.blitter.resize(&self.context, &self.output.output_view);
+        self.display.resize(width, height);
+        self.renderer.resize(&self.output.output_view);
+        self.blitter.resize(&self.output.output_view);
     }
 
     pub fn on_key_event(&mut self, key_code: KeyCode, is_pressed: bool) {

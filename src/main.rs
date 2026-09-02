@@ -1,3 +1,5 @@
+#![allow(clippy::missing_errors_doc)]
+#![allow(clippy::cast_possible_truncation)]
 use crate::AppRunner::Running;
 use crate::app::App;
 use glam::Vec2;
@@ -142,6 +144,7 @@ impl ApplicationHandler for AppRunner {
 
 fn main() {
     tracing_subscriber::fmt()
+        .with_ansi(true)
         .with_env_filter(EnvFilter::from_default_env().add_directive(Level::INFO.into()))
         .init();
     info!("Starting app...");
