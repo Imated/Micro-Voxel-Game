@@ -21,7 +21,7 @@ impl RenderContext {
     pub async fn new() -> anyhow::Result<Self> {
         let instance = Instance::new(InstanceDescriptor {
             backends: Backends::PRIMARY,
-            flags: InstanceFlags::debugging(),
+            flags: InstanceFlags::from_build_config(),
             memory_budget_thresholds: MemoryBudgetThresholds::default(),
             backend_options: BackendOptions::default(),
             display: None,

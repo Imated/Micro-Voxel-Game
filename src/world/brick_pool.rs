@@ -112,7 +112,7 @@ impl BrickPool {
                     }
 
                     let brick = Brick {
-                        voxels: flattened_voxels,
+                        //voxels: flattened_voxels,
                         occupancy_mask: occupancy.as_raw_slice().try_into().unwrap_or_default(),
                     };
 
@@ -122,6 +122,7 @@ impl BrickPool {
             }
         }
 
+        chunk.rebuild_metadata();
         self.is_dirty = true;
 
         chunk

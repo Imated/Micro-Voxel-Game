@@ -62,6 +62,8 @@ fn rand_on_hemisphere(normal: vec3<f32>) -> vec3<f32> {
 struct Ray {
     origin: vec3<f32>,
     direction: vec3<f32>,
+    inv_dir: vec3<f32>,
+    step: vec3<i32>,
 };
 
 struct HitInfo {
@@ -77,19 +79,19 @@ struct Camera {
 }
 
 struct Chunk {
-    indices: array<u32, 512> // 8 * 8 * 8
-    //bricks: array<array<array<Brick, 8>, 8>, 8>,
+    brick_indices: array<u32, 512>, // CHUNK_SIZE^3
+    brick_mask: array<u32, 16>, // CHUNK_SIZE^3 / 32
 }
 
 struct Brick {
-    voxels: array<u32, 512>,
-    occupancy_mask: array<u32, 16>, // BRICK SIZE * 2
+    //voxels: array<u32, 512>, allocate in separate buffer latore
+    occupancy_mask: array<u32, 16>, // BRICK_SIZE^3 / 32
 }
 
 const INFINITY: f32 = 3.402823466e+38;
 const WORLD_SIZE: vec3<i32> = vec3<i32>(8, 1, 8);
-const CHUNK_SIZE: f32 = 8.0;
-const BRICK_SIZE: f32 = 8.0;
+const CHUNK_SIZE: u32 = 8;
+const BRICK_SIZE: u32 = 8;
 const EPSILON: f32 = 0.000001;
 
 @group(0) @binding(0)
@@ -103,24 +105,15 @@ var<uniform> camera: Camera;
 
 @group(2) @binding(0)
 var output: texture_storage_2d<rgba16float, write>;
-fn get_brick(brick_coords: vec3<i32>) -> u32 {
-    let offsetted_coords = brick_coords + WORLD_SIZE * vec3<i32>(i32(CHUNK_SIZE)) / 2;
-    return chunks[flatten(
-                    vec3<u32>(offsetted_coords / vec3<i32>(i32(CHUNK_SIZE))),
-                    vec3<u32>(WORLD_SIZE)
-                )].indices[flatten(
-                    vec3<u32>(offsetted_coords % vec3<i32>(i32(CHUNK_SIZE))),
-                    vec3<u32>(u32(BRICK_SIZE))
-                        )];
-}
-
-fn is_brick_in_bounds(coords: vec3<i32>) -> bool {
-    let world_half = WORLD_SIZE * vec3<i32>(i32(CHUNK_SIZE)) / 2;
-    return all(coords < world_half) && all(coords >= -world_half);
-}
 
 fn flatten(coord: vec3<u32>, size: vec3<u32>) -> u32 {
     return coord.z * size.y * size.x + coord.y * size.x + coord.x;
+}
+
+fn create_ray(origin: vec3<f32>, direction: vec3<f32>) -> Ray {
+    let step = vec3<i32>(sign(direction));
+    let inv_dir = select(vec3<f32>(INFINITY), 1 / direction, step != vec3<i32>(0));
+    return Ray(origin, direction, inv_dir, step);
 }
 
 @compute
@@ -148,12 +141,18 @@ fn main(@builtin(global_invocation_id)id: vec3<u32>) {
     let camera_pos: vec3<f32> = camera.position.xyz;
     let direction = vec3<f32>(uv_centered.x * aspect, -uv_centered.y, -focal_length);
 
-    var ray = Ray(camera_pos, normalize(mat3x3<f32>(camera.rotation[0].xyz, camera.rotation[1].xyz, camera.rotation[2].xyz) * direction));
+    var ray = create_ray(camera_pos, normalize(mat3x3<f32>(camera.rotation[0].xyz, camera.rotation[1].xyz, camera.rotation[2].xyz) * direction));
     var current_ray = ray;
     var in_light = vec4<f32>(0.0);
     var color = vec4<f32>(1.0);
     for (var i = 0; i < 2; i++) {
         let info = trace_ray(current_ray);
+
+        // if (i == 0) {
+        //     let world_half = vec3<f32>(WORLD_SIZE * i32(CHUNK_SIZE)) * BRICK_SIZE / 2;
+        //     //textureStore(output, vec2<i32>(id.xy), vec4<f32>((info.hit_point / world_half) * 0.5 + 0.5, 0.0));
+        //     //textureStore(output, vec2<i32>(id.xy), vec4<f32>(info.hit_normal * 0.5 + 0.5, 0.0));
+        // }
 
         if info.t == INFINITY {
             in_light += sky(current_ray) * color;
@@ -161,122 +160,35 @@ fn main(@builtin(global_invocation_id)id: vec3<u32>) {
         }
 
         color *= 0.5 * vec4<f32>(info.hit_normal + 1, 0);
-        current_ray.direction = rand_on_hemisphere(info.hit_normal);
-        current_ray.origin = info.hit_point + info.hit_normal * 1e-3;
+        current_ray = create_ray(info.hit_point + info.hit_normal * 1e-3, rand_on_hemisphere(info.hit_normal));
     }
     //let color = ray_color(trace_ray(ray), ray);
     textureStore(output, vec2<i32>(id.xy), in_light);
 }
 
-fn trace_ray(ray: Ray) -> HitInfo {
-    let brick_size = BRICK_SIZE;
-    let world_half = vec3<f32>(WORLD_SIZE * i32(CHUNK_SIZE)) * brick_size / 2;
-    let world_hit = ray_aabb(-world_half, world_half, ray);
-    if world_hit.t == INFINITY {
-        return HitInfo(vec3<f32>(0.0), vec3<f32>(0.0), INFINITY, false);
-    }
-
-    // either the first point where the ray hits if we are outside of the world or the brick we are in if we are inside
-    let inside_world = all(ray.origin >= -world_half) && all(ray.origin <= world_half);
-    let t = select(world_hit.t + 0.0001, 0.0, inside_world);
-    let start_pos = ray.origin + ray.direction * t;
-
-    let grid_pos = start_pos / brick_size;
-    var current_brick = vec3<i32>(floor(grid_pos));
-
-    let step = vec3<i32>(sign(ray.direction));
-    let inv_dir = select(vec3<f32>(INFINITY), 1 / ray.direction, step != vec3<i32>(0));
-    let t_delta = abs(inv_dir) * brick_size;
-    let voxel_t_delta = abs(inv_dir);
-    let cb = select(vec3<f32>(current_brick), vec3<f32>(current_brick) + 1, ray.direction > vec3<f32>(0));
-    var t_max = select(vec3<f32>(INFINITY), t + (cb - grid_pos) * inv_dir * brick_size, step != vec3<i32>(0));
-
-    var normal = world_hit.hit_normal;
-    var t_current = t;
-
-    loop {
-        // ray stepped out of loaded chunks, no point to march ray anymore
-        if !is_brick_in_bounds(current_brick) {
-            break;
-        }
-
-        let index = get_brick(current_brick);
-        if index != 0 {
-            // voxel dda
-            let brick_min = vec3<f32>(current_brick) * brick_size;
-            let entry_point = ray.origin + ray.direction * t_current;
-            let local_grid_pos = (entry_point - brick_min);
-
-            var voxel_current = clamp(vec3<i32>(floor(local_grid_pos)), vec3<i32>(0), vec3<i32>(i32(BRICK_SIZE) - 1));
-            let voxel_cb = select(vec3<f32>(voxel_current), vec3<f32>(voxel_current) + 1, ray.direction > vec3<f32>(0));
-            var voxel_t_max = select(vec3<f32>(INFINITY), t_current + (voxel_cb - local_grid_pos) * inv_dir, step != vec3<i32>(0));
-            var voxel_t_current = t_current;
-
-            let occupancy_mask = brick_pool[index].occupancy_mask;
-
-            loop {
-                let bit = flatten(vec3<u32>(voxel_current), vec3<u32>(u32(BRICK_SIZE)));
-                let word = occupancy_mask[bit / 32];
-                if (word & (1u << (bit % 32))) != 0 {
-                    return HitInfo(ray.origin + ray.direction * voxel_t_current, normal, voxel_t_current, true);
-                }
-
-                if voxel_t_max.x < voxel_t_max.y && voxel_t_max.x < voxel_t_max.z {
-                    voxel_t_current = voxel_t_max.x;
-
-                    voxel_current.x += step.x;
-                    voxel_t_max.x += voxel_t_delta.x;
-
-                    normal = vec3<f32>(0);
-                    normal.x = -f32(step.x);
-                } else if voxel_t_max.y < voxel_t_max.z {
-                    voxel_t_current = voxel_t_max.y;
-
-                    voxel_current.y += step.y;
-                    voxel_t_max.y += voxel_t_delta.y;
-
-                    normal = vec3<f32>(0);
-                    normal.y = -f32(step.y);
-                } else {
-                    voxel_t_current = voxel_t_max.z;
-
-                    voxel_current.z += step.z;
-                    voxel_t_max.z += voxel_t_delta.z;
-
-                    normal = vec3<f32>(0);
-                    normal.z = -f32(step.z);
-                }
-
-                if any(voxel_current < vec3<i32>(0)) || any(voxel_current >= vec3<i32>(i32(BRICK_SIZE))) {
-                    break;
-                }
-            }
-        }
-
-        if t_max.x < t_max.y && t_max.x < t_max.z {
-            t_current = t_max.x;
-
-            current_brick.x += step.x;
-            t_max.x += t_delta.x;
-        } else if t_max.y < t_max.z {
-            t_current = t_max.y;
-
-            current_brick.y += step.y;
-            t_max.y += t_delta.y;
-        } else {
-            t_current = t_max.z;
-
-            current_brick.z += step.z;
-            t_max.z += t_delta.z;
-        }
-    }
-
-    return HitInfo(vec3<f32>(0.0), vec3<f32>(0.0), INFINITY, false);
+struct Dda {
+    cell: vec3<i32>,
+    t_max: vec3<f32>,
+    t: f32,
+    normal: vec3<f32>,
 }
 
-fn sky(ray: Ray) -> vec4<f32> {
-    let t = 0.5 * (normalize(ray.direction).y + 1.0);
-    return mix(vec4<f32>(1), vec4<f32>(0.5, 0.7, 1.0, 1.0), t);
+fn dda_begin(ray: Ray, t: f32, cell_size: f32, lo: vec3<i32>, hi: vec3<i32>, normal: vec3<f32>) -> Dda {
+    let grid_pos = (ray.origin + ray.direction * t) / cell_size;
+    let cell = clamp(vec3<i32>(floor(grid_pos)), lo, hi - vec3<i32>(1));
+    let cb = select(vec3<f32>(cell), vec3<f32>(cell) + 1, ray.direction > vec3<f32>(0));
+    let t_max = select(vec3<f32>(INFINITY), t + (cb - grid_pos) * ray.inv_dir * cell_size, ray.step != vec3<i32>(0));
+    return Dda(cell, t_max, t, normal);
+}
+
+fn dda_step(dda: Dda, ray: Ray, t_delta: vec3<f32>) -> Dda {
+    let crossed = dda.t_max <= min(dda.t_max.yzx, dda.t_max.zxy);
+    return Dda(
+        dda.cell + vec3<i32>(crossed) * ray.step,
+        select(dda.t_max, dda.t_max + t_delta, crossed),
+        min(dda.t_max.x, min(dda.t_max.y, dda.t_max.z)),
+        -vec3<f32>(crossed) * vec3<f32>(ray.step),
+    );
 }
 
 fn ray_aabb(box_min: vec3<f32>, box_max: vec3<f32>, ray: Ray) -> HitInfo {
@@ -320,4 +232,77 @@ fn ray_aabb(box_min: vec3<f32>, box_max: vec3<f32>, ray: Ray) -> HitInfo {
     }
 
     return HitInfo(hit_point, normal, t, front_face);
+}
+
+fn chunk_is_empty(chunk_index: u32) -> bool {
+    var words = 0u;
+    for (var i = 0u; i < 16u; i++) {
+        words |= chunks[chunk_index].brick_mask[i];
+    }
+    return words == 0u;
+}
+
+fn trace_ray(ray: Ray) -> HitInfo {
+    let world_half = vec3<f32>(WORLD_SIZE * i32(CHUNK_SIZE)) * f32(BRICK_SIZE / 2);
+    let world_hit = ray_aabb(-world_half, world_half, ray);
+    if world_hit.t == INFINITY {
+        return HitInfo(vec3<f32>(0.0), vec3<f32>(0.0), INFINITY, false);
+    }
+
+    // either the first point where the ray hits if we are outside of the world or the chunk we are in if we are inside
+    let inside_world = all(ray.origin >= -world_half) && all(ray.origin <= world_half);
+    let t = select(world_hit.t + 0.0001, 0.0, inside_world);
+
+    let chunk_t_delta = abs(ray.inv_dir) * f32(CHUNK_SIZE * BRICK_SIZE);
+    let brick_t_delta = abs(ray.inv_dir) * f32(BRICK_SIZE);
+    let voxel_t_delta = abs(ray.inv_dir);
+
+    let grid_ray = Ray(ray.origin + world_half, ray.direction, ray.inv_dir, ray.step);
+    var chunk = dda_begin(grid_ray, t, f32(CHUNK_SIZE * BRICK_SIZE), vec3<i32>(0), WORLD_SIZE, world_hit.hit_normal);
+
+    loop {
+        let chunk_index = flatten(vec3<u32>(chunk.cell), vec3<u32>(WORLD_SIZE));
+        if !chunk_is_empty(chunk_index) {
+            let brick_lo = chunk.cell * i32(CHUNK_SIZE);
+            let brick_hi = brick_lo + vec3<i32>(i32(CHUNK_SIZE));
+            var brick = dda_begin(grid_ray, chunk.t, f32(BRICK_SIZE), brick_lo, brick_hi, chunk.normal);
+            loop {
+                let brick_slot = flatten(vec3<u32>(brick.cell) & vec3<u32>(CHUNK_SIZE - 1), vec3<u32>(CHUNK_SIZE));
+                if ((chunks[chunk_index].brick_mask[brick_slot >> 5] >> (brick_slot & 31)) & 1) != 0 {
+                    let brick_index = chunks[chunk_index].brick_indices[brick_slot];
+                    let voxel_lo = brick.cell * i32(BRICK_SIZE);
+                    let voxel_hi = voxel_lo + vec3<i32>(i32(BRICK_SIZE));
+                    var voxel = dda_begin(grid_ray, brick.t, 1.0, voxel_lo, voxel_hi, brick.normal);
+                    loop {
+                        let bit = flatten(vec3<u32>(voxel.cell) & vec3<u32>(BRICK_SIZE - 1), vec3<u32>(BRICK_SIZE));
+                        if ((brick_pool[brick_index].occupancy_mask[bit >> 5] >> (bit & 31)) & 1) != 0 {
+                            return HitInfo(ray.origin + ray.direction * voxel.t, voxel.normal, voxel.t, true);
+                        }
+
+                        voxel = dda_step(voxel, grid_ray, voxel_t_delta);
+                        if any(vec3<u32>(voxel.cell - voxel_lo) >= vec3<u32>(BRICK_SIZE)) {
+                            break;
+                        }
+                    }
+                }
+
+                brick = dda_step(brick, grid_ray, brick_t_delta);
+                if any(vec3<u32>(brick.cell - brick_lo) >= vec3<u32>(CHUNK_SIZE)) {
+                    break;
+                }
+            }
+        }
+
+        chunk = dda_step(chunk, grid_ray, chunk_t_delta);
+        if any(vec3<u32>(chunk.cell) >= vec3<u32>(WORLD_SIZE)) {
+            break;
+        }
+    }
+
+    return HitInfo(vec3<f32>(0.0), vec3<f32>(0.0), INFINITY, false);
+}
+
+fn sky(ray: Ray) -> vec4<f32> {
+    let t = 0.5 * (normalize(ray.direction).y + 1.0);
+    return mix(vec4<f32>(1), vec4<f32>(0.5, 0.7, 1.0, 1.0), t);
 }

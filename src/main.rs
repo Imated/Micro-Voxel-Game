@@ -2,6 +2,7 @@
 #![allow(clippy::cast_possible_truncation)]
 use crate::AppRunner::Running;
 use crate::app::App;
+use crate::util::ResultExt;
 use glam::Vec2;
 use std::num::NonZeroU32;
 use std::sync::Arc;
@@ -34,7 +35,7 @@ pub enum AppRunner {
     Uninitialized,
     Running {
         app: Box<App>,
-        frame_count: i64,
+        frame_count: u64,
         window: Arc<Window>,
         delta_time: Duration,
     },
@@ -50,11 +51,11 @@ impl ApplicationHandler for AppRunner {
                         .with_fullscreen(Some(Borderless(None)))
                         .with_inner_size(PhysicalSize::new(800, 600)),
                 )
-                .unwrap(),
+                .unwrap_or_abort("Failed to create window"),
         );
 
         *self = Running {
-            app: Box::new(App::new(window.clone())),
+            app: Box::new(App::new(window.clone()).unwrap_or_abort("Failed to launch app")),
             frame_count: 0,
             window,
             delta_time: Duration::ZERO,
@@ -84,10 +85,11 @@ impl ApplicationHandler for AppRunner {
             WindowEvent::RedrawRequested => {
                 let prev = Instant::now();
 
-                app.render(*delta_time);
+                app.render(*delta_time)
+                    .unwrap_or_abort("Failed to render frame!");
 
                 *delta_time = prev.elapsed();
-                let threshold = (512.0 * (1.0 - delta_time.as_secs_f32())).max(5.0) as i64;
+                let threshold = (512.0 * (1.0 - delta_time.as_secs_f32())).max(5.0) as u64;
                 if *frame_count % threshold == 0 {
                     window.set_title(&format!(
                         "Micro Voxels - {:.1?} FPS",
@@ -95,7 +97,7 @@ impl ApplicationHandler for AppRunner {
                     ));
                 }
 
-                *frame_count += 1;
+                *frame_count = (*frame_count).wrapping_add(1);
                 window.request_redraw();
             }
             WindowEvent::Resized(size) => {
@@ -142,14 +144,14 @@ impl ApplicationHandler for AppRunner {
     }
 }
 
-fn main() {
+fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_ansi(true)
         .with_env_filter(EnvFilter::from_default_env().add_directive(Level::INFO.into()))
         .init();
     info!("Starting app...");
-    let event_loop = EventLoop::new().unwrap();
-    event_loop
-        .run_app(&mut AppRunner::default())
-        .expect("Failed to run app");
+    let event_loop = EventLoop::new()?;
+    event_loop.run_app(&mut AppRunner::default())?;
+
+    Ok(())
 }

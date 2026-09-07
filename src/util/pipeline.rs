@@ -9,7 +9,6 @@ use std::{
     iter::once,
     ops::Deref,
     path::Path,
-    process::abort,
     sync::{Arc, Mutex, MutexGuard},
     time::Duration,
 };
@@ -147,8 +146,10 @@ impl<P: Pipeline + Send + Sync + 'static> HotReloadPipeline<P> {
         })
     }
 
-    pub fn acquire(&self) -> MutexGuard<'_, P> {
-        self.lock().expect("Welp something panicked :despair:")
+    pub fn acquire(&self) -> anyhow::Result<MutexGuard<'_, P>> {
+        self.inner
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Mutex was poisoned! :despair:"))
     }
 }
 

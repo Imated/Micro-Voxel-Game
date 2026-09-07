@@ -18,7 +18,7 @@ pub struct Blitter {
 }
 
 impl Blitter {
-    pub fn new(context: RenderContext, source: &RenderTexture) -> Self {
+    pub fn new(context: RenderContext, source: &RenderTexture) -> anyhow::Result<Self> {
         let bind_group_layout =
             context
                 .device
@@ -61,15 +61,15 @@ impl Blitter {
                 bind_group_layouts: &[Some(&bind_group_layout)],
                 immediate_size: 0,
             });
-        let pipeline = HotReloadPipeline::new(&context, layout, "blit").unwrap();
+        let pipeline = HotReloadPipeline::new(&context, layout, "blit")?;
 
-        Self {
+        Ok(Self {
             context,
             pipeline,
             sampler,
             bind_group_layout,
             bind_group,
-        }
+        })
     }
 
     pub fn resize(&mut self, source_view: &TextureView) {
@@ -81,7 +81,7 @@ impl Blitter {
         );
     }
 
-    pub fn blit(&self, frame: &mut Frame) {
+    pub fn blit(&self, frame: &mut Frame) -> anyhow::Result<()> {
         let mut render_pass = frame.encoder.begin_render_pass(&RenderPassDescriptor {
             label: Some("Blit Pass"),
             color_attachments: &[Some(RenderPassColorAttachment {
@@ -101,9 +101,11 @@ impl Blitter {
 
         let mut render_pass = frame.profiler.scope("Blit", &mut render_pass);
 
-        render_pass.set_pipeline(&self.pipeline.acquire());
+        render_pass.set_pipeline(&*self.pipeline.acquire()?);
         render_pass.set_bind_group(0, &self.bind_group, &[]);
         render_pass.draw(0..3, 0..1);
+
+        Ok(())
     }
 
     fn create_bind_group(

@@ -53,9 +53,15 @@ impl<T: Default + PartialEq> FreeList<T> {
         }
 
         let next = self.next;
-        self.slots.insert(next, data);
-        self.rc.insert(next, 1);
-        self.reserved.insert(next, true);
+        if next == self.slots.len() {
+            self.slots.push(data);
+            self.rc.push(1);
+            self.reserved.push(true);
+        } else {
+            self.slots[next] = data;
+            self.rc[next] = 1;
+            self.reserved.set(next, true);
+        }
         self.greatest_used_index = self.greatest_used_index.max(self.next);
         self.next = self.reserved.leading_ones();
 
@@ -66,8 +72,8 @@ impl<T: Default + PartialEq> FreeList<T> {
     pub fn free(&mut self, index: usize) -> () {
         self.rc[index] -= 1;
         if self.rc[index] == 0 {
-            self.slots.insert(index, T::default());
-            self.reserved.insert(index, false);
+            self.slots[index] = T::default();
+            self.reserved.set(index, false);
             self.greatest_used_index = self.reserved.len() - self.reserved.trailing_zeros();
             self.next = self.next.min(index);
         }

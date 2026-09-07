@@ -32,9 +32,9 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(window: Arc<Window>) -> Self {
-        let context = pollster::block_on(RenderContext::new()).expect("Failed to create renderer.");
-        let display = Display::new(context.clone(), &window).expect("Failed to create display.");
+    pub fn new(window: Arc<Window>) -> anyhow::Result<Self> {
+        let context = pollster::block_on(RenderContext::new())?;
+        let display = Display::new(context.clone(), &window)?;
         let output = RenderTexture::new(
             &context,
             window.inner_size().width,
@@ -42,8 +42,8 @@ impl App {
         );
         let camera = Camera::new(&context, Vec3::splat(0.0), 0.0_f32, 0.0_f32);
         let mut world_renderer = WorldRenderer::new(context.clone());
-        let renderer = Renderer::new(context.clone(), &output, &camera, &world_renderer);
-        let blitter = Blitter::new(context.clone(), &output);
+        let renderer = Renderer::new(context.clone(), &output, &camera, &world_renderer)?;
+        let blitter = Blitter::new(context.clone(), &output)?;
         let gui_renderer =
             GuiRenderer::new(context.clone(), window.clone(), display.surface_format());
         let profiler = GpuProfiler::new(
@@ -53,8 +53,7 @@ impl App {
                 enable_debug_groups: false,
                 max_num_pending_frames: 2,
             },
-        )
-        .expect("Failed to crate GPU profiler.");
+        )?;
 
         for x in -4..4 {
             for y in 0..1 {
@@ -66,7 +65,7 @@ impl App {
 
         info!("bricks: {}", world_renderer.brick_pool.len());
 
-        Self {
+        Ok(Self {
             window,
             context,
             display,
@@ -78,20 +77,24 @@ impl App {
             gui_renderer,
             profiler,
             profiled_passes: [("Raytracing", 0.0), ("Blit", 0.0), ("UI", 0.0)],
-        }
+        })
     }
 
-    pub fn render(&mut self, delta_time: Duration) {
+    pub fn render(&mut self, delta_time: Duration) -> anyhow::Result<()> {
         // acquire frame and skip if smth happened and hope it works next frame
         let Some(mut frame) = self.display.acquire_frame(&self.profiler) else {
-            return;
+            return Ok(());
         };
 
         self.camera.update(delta_time);
         self.world_renderer.update();
-        self.renderer
-            .raytrace_pass(&mut frame, &self.output, &self.camera, &self.world_renderer);
-        self.blitter.blit(&mut frame);
+        self.renderer.raytrace_pass(
+            &mut frame,
+            &self.output,
+            &self.camera,
+            &self.world_renderer,
+        )?;
+        self.blitter.blit(&mut frame)?;
 
         // UI
         self.gui_renderer.run(&mut frame, |ui| {
@@ -170,17 +173,19 @@ impl App {
         self.context.queue.submit([encoder.finish()]);
         surface_texture.present();
 
-        self.profiler.end_frame().unwrap();
+        self.profiler.end_frame()?;
 
         if let Some(profiling_data) = self
             .profiler
             .process_finished_frame(self.context.queue.get_timestamp_period())
         {
             for (i, profiling_pass) in profiling_data.iter().enumerate() {
-                let time = profiling_pass.time.as_ref().unwrap();
+                let time = profiling_pass.time.as_ref().unwrap_or(&(0.0..0.0));
                 self.profiled_passes[i].1 = ((time.end - time.start) * 1000.0) as f32;
             }
         }
+
+        Ok(())
     }
 
     pub fn on_resize(&mut self, width: NonZeroU32, height: NonZeroU32) {

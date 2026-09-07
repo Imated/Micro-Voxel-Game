@@ -57,13 +57,12 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    #[must_use]
     pub fn new(
         context: RenderContext,
         output: &RenderTexture,
         camera: &Camera,
         world_renderer: &WorldRenderer,
-    ) -> Self {
+    ) -> anyhow::Result<Self> {
         let bind_group_layout =
             context
                 .device
@@ -93,14 +92,14 @@ impl Renderer {
                 ],
                 immediate_size: 0,
             });
-        let pipeline = HotReloadPipeline::new(&context, layout, "raytracer").unwrap();
+        let pipeline = HotReloadPipeline::new(&context, layout, "raytracer")?;
 
-        Self {
+        Ok(Self {
             context,
             pipeline,
             bind_group_layout,
             bind_group,
-        }
+        })
     }
 
     pub fn resize(&mut self, output_view: &TextureView) {
@@ -114,18 +113,20 @@ impl Renderer {
         output: &RenderTexture,
         camera: &Camera,
         world_renderer: &WorldRenderer,
-    ) {
+    ) -> anyhow::Result<()> {
         let mut compute_pass = frame.encoder.begin_compute_pass(&ComputePassDescriptor {
             label: Some("Raytracer Compute Pass"),
             timestamp_writes: None,
         });
 
         let mut compute_pass = frame.profiler.scope("Raytracing", &mut compute_pass);
-        compute_pass.set_pipeline(&self.pipeline.acquire());
+        compute_pass.set_pipeline(&*self.pipeline.acquire()?);
         compute_pass.set_bind_group(0, world_renderer.bind_group(), &[]);
         compute_pass.set_bind_group(1, camera.get_bind_group(), &[]);
         compute_pass.set_bind_group(2, &self.bind_group, &[]);
         compute_pass.dispatch_workgroups(output.width.div_ceil(16), output.height.div_ceil(16), 1);
+
+        Ok(())
     }
 
     fn create_bind_group(
