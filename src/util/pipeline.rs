@@ -41,7 +41,7 @@ impl Pipeline for ComputePipeline {
         Ok(context
             .device
             .create_compute_pipeline(&ComputePipelineDescriptor {
-                label: None,
+                label: Some(path),
                 layout: Some(layout),
                 module: &make_wesl_shader(context, path)?,
                 entry_point: None,
@@ -64,7 +64,7 @@ impl Pipeline for RenderPipeline {
         Ok(context
             .device
             .create_render_pipeline(&RenderPipelineDescriptor {
-                label: None,
+                label: Some(path),
                 layout: Some(layout),
                 vertex: VertexState {
                     module: &shader,

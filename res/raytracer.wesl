@@ -93,6 +93,7 @@ const WORLD_SIZE: vec3<i32> = vec3<i32>(8, 1, 8);
 const CHUNK_SIZE: i32 = 8;
 const BRICK_SIZE: i32 = 8;
 const EPSILON: f32 = 0.000001;
+const PI: f32 = 3.14159265;
 
 @group(0) @binding(0)
 var<storage, read> chunks: array<Chunk, 64>; // 8 * 1 * 8
@@ -114,6 +115,59 @@ fn create_ray(origin: vec3<f32>, direction: vec3<f32>) -> Ray {
     let step = vec3<i32>(sign(direction));
     let inv_dir = select(vec3<f32>(INFINITY), 1 / direction, step != vec3<i32>(0));
     return Ray(origin, direction, inv_dir, step);
+}
+
+fn D(alpha: f32, N: vec3<f32>, H: vec3<f32>) -> f32 {
+    let numerator = pow(alpha, 2.0);
+    let N_dot_H = max(dot(N, H), 0.0);
+    let denominator = max(PI * pow(pow(N_dot_H, 2.0) * (numerator - 1.0) + 1.0, 2.0), EPSILON);
+    return numerator / denominator;
+}
+
+fn G1(alpha: f32, N: vec3<f32>, X: vec3<f32>) -> f32 {
+    let numerator = max(dot(N, X), 0.0);
+
+    let k = alpha / 2.0;
+    let denominator = max(numerator * (1.0 - k) + k, EPSILON);
+    return numerator / denominator;
+}
+
+fn G(alpha: f32, N: vec3<f32>, V: vec3<f32>, L: vec3<f32>) -> f32 {
+    return G1(alpha, N, V) * G1(alpha, N, L);
+}
+
+fn F(F0: vec3<f32>, V: vec3<f32>, H: vec3<f32>) -> vec3<f32> {
+    return F0 + (vec3<f32>(1.0) - F0) * pow(1.0 - max(dot(V, H), 0.0), 5.0);
+}
+
+fn voxel_color(info: HitInfo) -> vec4<f32> {
+    let albedo = vec3<f32>(0.12, 0.32, 0.06);
+    let roughness = 0.85;
+    let F0 = vec3<f32>(0.04);
+
+    let light_color = vec3<f32>(1.0, 0.95, 0.85) * 3.5;
+    let ambient_color = vec3<f32>(0.5, 0.7, 1.0) * 0.25;
+
+    let N = normalize(info.hit_normal);
+    let V = normalize(camera.position.xyz - info.hit_point);
+    let L = normalize(vec3<f32>(0.3, 1.0, 0.5));
+    let H = normalize(V + L);
+
+    let alpha = roughness * roughness;
+
+    let Ks = F(F0, V, H);
+    let Kd = vec3<f32>(1.0) - Ks;
+    let lambert = albedo / PI;
+
+    let cook_torrance_numerator = D(alpha, N, H) * G(alpha, N, V, L) * Ks;
+    let cook_torrance_denominator = max(4.0 * max(dot(V, N), 0.0) * max(dot(L, N), 0.0), EPSILON);
+    let cook_torrance = cook_torrance_numerator / cook_torrance_denominator;
+
+    let BRDF = Kd * lambert + cook_torrance;
+    let outgoing_light = BRDF * light_color * max(dot(L, N), 0.0);
+    let ambient = albedo * ambient_color;
+
+    return vec4<f32>(outgoing_light + ambient, 1.0);
 }
 
 @compute
@@ -144,7 +198,7 @@ fn main(@builtin(global_invocation_id)id: vec3<u32>) {
     var ray = create_ray(camera_pos, normalize(mat3x3<f32>(camera.rotation[0].xyz, camera.rotation[1].xyz, camera.rotation[2].xyz) * direction));
     var info = trace_ray(ray);
     var color = vec4<f32>(1.0);
-    color = select(sky(ray), 0.5 * vec4<f32>(info.hit_normal + 1, 0), info.t != INFINITY);
+    color = select(sky(ray), voxel_color(info), info.t != INFINITY);
     textureStore(output, vec2<i32>(id.xy), color);
 }
 
@@ -263,21 +317,21 @@ fn trace_ray(ray: Ray) -> HitInfo {
                         }
 
                         voxel = dda_step(voxel, grid_ray, voxel_t_delta);
-                        if any(voxel.cell - voxel_lo >= vec3<i32>(BRICK_SIZE)) {
+                        if any(voxel.cell < voxel_lo) || any(voxel.cell >= voxel_hi) {
                             break;
                         }
                     }
                 }
 
                 brick = dda_step(brick, grid_ray, brick_t_delta);
-                if any(brick.cell - brick_lo >= vec3<i32>(CHUNK_SIZE)) {
+                if any(brick.cell < brick_lo) || any(brick.cell >= brick_hi) {
                     break;
                 }
             }
         }
 
         chunk = dda_step(chunk, grid_ray, chunk_t_delta);
-        if any(chunk.cell >= vec3<i32>(WORLD_SIZE)) {
+        if any(chunk.cell < vec3<i32>(0)) || any(chunk.cell >= WORLD_SIZE) {
             break;
         }
     }

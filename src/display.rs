@@ -1,6 +1,7 @@
 use crate::render_context::RenderContext;
 use std::num::NonZeroU32;
 use std::sync::Arc;
+use tracing::warn;
 use wgpu::{
     CommandEncoder, CommandEncoderDescriptor, CurrentSurfaceTexture, PresentMode, Surface,
     SurfaceConfiguration, SurfaceTexture, TextureFormat, TextureUsages, TextureView,
@@ -25,9 +26,13 @@ impl Display {
         let surface_format = surface_caps
             .formats
             .iter()
-            .find(|f| f.is_srgb())
+            .find(|&&f| f == TextureFormat::Bgra8UnormSrgb)
             .copied()
             .unwrap_or(surface_caps.formats[0]);
+
+        if surface_format != TextureFormat::Bgra8UnormSrgb {
+            warn!("Failed to find Bgra8UnormSrgb format!");
+        }
 
         let config = SurfaceConfiguration {
             usage: TextureUsages::RENDER_ATTACHMENT,
