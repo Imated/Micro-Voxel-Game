@@ -1,5 +1,6 @@
 use crate::buffer::TypedBuffer;
 use crate::render_context::RenderContext;
+use crate::util::constants::VOXELS_PER_METER;
 use bytemuck::{Pod, Zeroable};
 use glam::{Mat4, Vec2, Vec3, Vec4};
 use std::f32::consts::FRAC_PI_2;
@@ -107,7 +108,7 @@ impl Camera {
     }
 
     pub fn update(&mut self, delta_time: Duration) {
-        const SPEED: f32 = 100.0;
+        const SPEED: f32 = 3.0 * VOXELS_PER_METER;
         const SENSITIVITY: f32 = 0.001;
 
         let direction = Vec2::new(

@@ -81,7 +81,7 @@ struct Camera {
 struct Chunk {
     brick_indices: array<u32, 512>, // CHUNK_SIZE^3
     brick_mask: array<u32, 16>, // CHUNK_SIZE^3 / 32
-    voxel_data_base: array<u32, 512> // CHUNK_SIZE^3
+    //voxel_data_base: array<u32, 512> // CHUNK_SIZE^3
 }
 
 struct Brick {
@@ -106,8 +106,8 @@ var<storage, read> chunks: array<Chunk, 64>; // 8 * 1 * 8
 @group(0) @binding(1)
 var<storage, read> brick_pool: array<Brick>;
 
-@group(0) @binding(2)
-var<storage, read> voxel_data: array<VoxelData>;
+//@group(0) @binding(2)
+//var<storage, read> voxel_data: array<VoxelData>;
 
 @group(1) @binding(0)
 var<uniform> camera: Camera;

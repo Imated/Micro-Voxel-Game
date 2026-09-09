@@ -4,6 +4,7 @@ use crate::display::{Display, Frame};
 use crate::gui_renderer::GuiRenderer;
 use crate::render_context::RenderContext;
 use crate::renderer::{RenderTexture, Renderer};
+use crate::util::constants::{BRICK_SIZE, CHUNK_SIZE, VOXELS_PER_METER, WORLD_SIZE};
 use crate::world::{chunk::ChunkPos, world_renderer::WorldRenderer};
 use egui::{Align2, Color32, FontId, RichText, Sense, vec2};
 use glam::{Vec2, Vec3, ivec3};
@@ -40,7 +41,10 @@ impl App {
             window.inner_size().width,
             window.inner_size().height,
         );
-        let camera = Camera::new(&context, Vec3::splat(0.0), 0.0_f32, 0.0_f32);
+        let world_bottom = -((WORLD_SIZE.y * CHUNK_SIZE.y * BRICK_SIZE.y) as f32) / 2.0;
+        let eye_height = 1.8 * VOXELS_PER_METER;
+        let start_y = world_bottom + BRICK_SIZE.y as f32 + eye_height;
+        let camera = Camera::new(&context, Vec3::new(0.0, start_y, 0.0), 0.0_f32, 0.0_f32);
         let mut world_renderer = WorldRenderer::new(context.clone());
         let renderer = Renderer::new(context.clone(), &output, &camera, &world_renderer)?;
         let blitter = Blitter::new(context.clone(), &output)?;

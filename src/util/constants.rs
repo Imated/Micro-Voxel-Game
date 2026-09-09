@@ -1,5 +1,9 @@
 use glam::{UVec3, uvec3};
 
+/// size of one voxel
+pub const VOXEL_SIZE_METERS: f32 = 0.1;
+pub const VOXELS_PER_METER: f32 = 1.0 / VOXEL_SIZE_METERS;
+
 /// how many chunks are loaded at a time
 pub const WORLD_SIZE: UVec3 = uvec3(8, 1, 8);
 /// how many bricks are in a chunk
