@@ -81,11 +81,16 @@ struct Camera {
 struct Chunk {
     brick_indices: array<u32, 512>, // CHUNK_SIZE^3
     brick_mask: array<u32, 16>, // CHUNK_SIZE^3 / 32
+    voxel_data_base: array<u32, 512> // CHUNK_SIZE^3
 }
 
 struct Brick {
     //voxels: array<u32, 512>, allocate in separate buffer latore
     occupancy_mask: array<u32, 16>, // BRICK_SIZE^3 / 32
+}
+
+struct VoxelData {
+    shadow_shit: u32,
 }
 
 const INFINITY: f32 = 3.402823466e+38;
@@ -100,6 +105,9 @@ var<storage, read> chunks: array<Chunk, 64>; // 8 * 1 * 8
 
 @group(0) @binding(1)
 var<storage, read> brick_pool: array<Brick>;
+
+@group(0) @binding(2)
+var<storage, read> voxel_data: array<VoxelData>;
 
 @group(1) @binding(0)
 var<uniform> camera: Camera;
