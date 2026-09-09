@@ -81,16 +81,11 @@ struct Camera {
 struct Chunk {
     brick_indices: array<u32, 512>, // CHUNK_SIZE^3
     brick_mask: array<u32, 16>, // CHUNK_SIZE^3 / 32
-    //voxel_data_base: array<u32, 512> // CHUNK_SIZE^3
 }
 
 struct Brick {
     //voxels: array<u32, 512>, allocate in separate buffer latore
     occupancy_mask: array<u32, 16>, // BRICK_SIZE^3 / 32
-}
-
-struct VoxelData {
-    shadow_shit: u32,
 }
 
 const INFINITY: f32 = 3.402823466e+38;
@@ -100,14 +95,14 @@ const BRICK_SIZE: i32 = 8;
 const EPSILON: f32 = 0.000001;
 const PI: f32 = 3.14159265;
 
+const SUN_DIR: vec3<f32> = vec3<f32>(0.3, 1.0, 0.5);
+const SUN_ANGULAR_RADIUS: f32 = 0.0093;
+
 @group(0) @binding(0)
 var<storage, read> chunks: array<Chunk, 64>; // 8 * 1 * 8
 
 @group(0) @binding(1)
 var<storage, read> brick_pool: array<Brick>;
-
-//@group(0) @binding(2)
-//var<storage, read> voxel_data: array<VoxelData>;
 
 @group(1) @binding(0)
 var<uniform> camera: Camera;
@@ -148,6 +143,14 @@ fn F(F0: vec3<f32>, V: vec3<f32>, H: vec3<f32>) -> vec3<f32> {
     return F0 + (vec3<f32>(1.0) - F0) * pow(1.0 - max(dot(V, H), 0.0), 5.0);
 }
 
+fn shadow_color(p: vec3<f32>, n: vec3<f32>) -> f32 {
+    let origin = p + n * 0.01;
+    var lit = 0.0;
+    let d = normalize(SUN_DIR);
+    let hit = trace_ray(create_ray(origin, d));
+    return select(0.0, 1.0, hit.t == INFINITY);
+}
+
 fn voxel_color(info: HitInfo) -> vec4<f32> {
     let albedo = vec3<f32>(0.12, 0.32, 0.06);
     let roughness = 0.85;
@@ -158,7 +161,7 @@ fn voxel_color(info: HitInfo) -> vec4<f32> {
 
     let N = normalize(info.hit_normal);
     let V = normalize(camera.position.xyz - info.hit_point);
-    let L = normalize(vec3<f32>(0.3, 1.0, 0.5));
+    let L = normalize(SUN_DIR);
     let H = normalize(V + L);
 
     let alpha = roughness * roughness;
@@ -171,8 +174,11 @@ fn voxel_color(info: HitInfo) -> vec4<f32> {
     let cook_torrance_denominator = max(4.0 * max(dot(V, N), 0.0) * max(dot(L, N), 0.0), EPSILON);
     let cook_torrance = cook_torrance_numerator / cook_torrance_denominator;
 
+    // shadows
+    let shadow_color = shadow_color(info.hit_point, N);
+
     let BRDF = Kd * lambert + cook_torrance;
-    let outgoing_light = BRDF * light_color * max(dot(L, N), 0.0);
+    let outgoing_light = BRDF * light_color * max(dot(L, N) * shadow_color, 0.0);
     let ambient = albedo * ambient_color;
 
     return vec4<f32>(outgoing_light + ambient, 1.0);
