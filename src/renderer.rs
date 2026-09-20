@@ -9,6 +9,7 @@ use wgpu::{
     TextureDescriptor, TextureDimension, TextureFormat, TextureUsages, TextureView,
     TextureViewDescriptor, TextureViewDimension,
 };
+use wgpu_profiler::GpuProfiler;
 
 pub struct RenderTexture {
     pub output: Texture,
@@ -113,13 +114,14 @@ impl Renderer {
         output: &RenderTexture,
         camera: &Camera,
         world_renderer: &WorldRenderer,
+        profiler: &GpuProfiler,
     ) -> anyhow::Result<()> {
         let mut compute_pass = frame.encoder.begin_compute_pass(&ComputePassDescriptor {
             label: Some("Raytracer Compute Pass"),
             timestamp_writes: None,
         });
 
-        let mut compute_pass = frame.profiler.scope("Raytracing", &mut compute_pass);
+        let mut compute_pass = profiler.scope("Raytracing", &mut compute_pass);
         compute_pass.set_pipeline(&*self.pipeline.acquire()?);
         compute_pass.set_bind_group(0, world_renderer.bind_group(), &[]);
         compute_pass.set_bind_group(1, camera.get_bind_group(), &[]);

@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1.0.103"
+ash = "0.38.0"
 bevy_tasks = "0.19.1"
 bitvec = "1.1.1"
 bytemuck = "1.25.1"
@@ -13,6 +14,7 @@ egui-wgpu = { version = "0.35.0" }
 egui-winit = { version = "0.35.0" }
 fastnoise2 = "0.4.0"
 glam = { version = "0.33.2", features = ["bytemuck"] }
+humanize-bytes = "1.0.6"
 notify = "8.2.0"
 notify-debouncer-full = "0.7.0"
 pollster = "1.0.1"
@@ -20,7 +22,7 @@ static_assertions = "1.1.0"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "ansi"] }
 wesl = "0.4.1"
-wgpu = "29.0.4"
+wgpu = { version = "29.0.4", features = ["default"] }
 wgpu-profiler = { version = "0.27.0", features = ["tracy"] }
 winit = "0.30.13"
 

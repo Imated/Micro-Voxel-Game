@@ -6,12 +6,15 @@ use crate::render_context::RenderContext;
 use crate::renderer::{RenderTexture, Renderer};
 use crate::util::constants::{BRICK_SIZE, CHUNK_SIZE, VOXELS_PER_METER, WORLD_SIZE};
 use crate::world::{chunk::ChunkPos, world_renderer::WorldRenderer};
+use ash::vk::PhysicalDeviceMemoryBudgetPropertiesEXT;
 use egui::{Align2, Color32, FontId, RichText, Sense, vec2};
 use glam::{Vec2, Vec3, ivec3};
+use humanize_bytes::humanize_bytes_binary;
 use std::num::NonZeroU32;
 use std::sync::Arc;
 use std::time::Duration;
 use tracing::info;
+use wgpu::wgc::api::Vulkan;
 use wgpu_profiler::{GpuProfiler, GpuProfilerSettings};
 use winit::event::{ElementState, MouseButton, WindowEvent};
 use winit::keyboard::KeyCode;
@@ -86,7 +89,7 @@ impl App {
 
     pub fn render(&mut self, delta_time: Duration) -> anyhow::Result<()> {
         // acquire frame and skip if smth happened and hope it works next frame
-        let Some(mut frame) = self.display.acquire_frame(&self.profiler) else {
+        let Some(mut frame) = self.display.acquire_frame() else {
             return Ok(());
         };
 
@@ -97,11 +100,41 @@ impl App {
             &self.output,
             &self.camera,
             &self.world_renderer,
+            &self.profiler,
         )?;
-        self.blitter.blit(&mut frame)?;
+        self.blitter.blit(&mut frame, &self.profiler)?;
+        self.render_gui(delta_time, &mut frame);
 
-        // UI
-        self.gui_renderer.run(&mut frame, |ui| {
+        let Frame {
+            surface_texture,
+            mut encoder,
+            ..
+        } = frame;
+
+        self.profiler.resolve_queries(&mut encoder);
+
+        self.gui_renderer.egui().request_repaint();
+        self.window.pre_present_notify();
+        self.context.queue.submit([encoder.finish()]);
+        surface_texture.present();
+
+        self.profiler.end_frame()?;
+
+        if let Some(profiling_data) = self
+            .profiler
+            .process_finished_frame(self.context.queue.get_timestamp_period())
+        {
+            for (i, profiling_pass) in profiling_data.iter().enumerate() {
+                let time = profiling_pass.time.as_ref().unwrap_or(&(0.0..0.0));
+                self.profiled_passes[i].1 = ((time.end - time.start) * 1000.0) as f32;
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn render_gui(&mut self, delta_time: Duration, frame: &mut Frame) {
+        self.gui_renderer.run(frame, &mut self.profiler, |ui| {
             ui.style_mut().animation_time = 0.0;
 
             egui::Window::new("Profiler")
@@ -161,35 +194,79 @@ impl App {
                             );
                         }
                     });
+                    ui.separator();
+                    ui.label(RichText::new("VRAM usage:").heading().strong().monospace());
+                    if let Some(hal_instance) = unsafe { self.context.instance.as_hal::<Vulkan>() }
+                    {
+                        use ash::vk;
+
+                        let instance = hal_instance.shared_instance().raw_instance();
+                        let raw_physical_device =
+                            unsafe { instance.enumerate_physical_devices().unwrap()[0] };
+
+                        let mut memory_budget_properties =
+                            PhysicalDeviceMemoryBudgetPropertiesEXT::default();
+                        let mut memory_properties = vk::PhysicalDeviceMemoryProperties2::default()
+                            .push_next(&mut memory_budget_properties);
+
+                        unsafe {
+                            instance.get_physical_device_memory_properties2(
+                                raw_physical_device,
+                                &mut memory_properties,
+                            );
+                        };
+
+                        for (i, heap) in memory_properties
+                            .memory_properties
+                            .memory_heaps
+                            .iter()
+                            .enumerate()
+                        {
+                            if heap.flags.contains(vk::MemoryHeapFlags::DEVICE_LOCAL) {
+                                ui.indent(67, |ui| {
+                                    let budget = memory_budget_properties.heap_budget[i];
+                                    let usage = memory_budget_properties.heap_usage[i];
+                                    let max_width = 340.0;
+                                    let (filled_rect, _) = ui.allocate_exact_size(
+                                        vec2((max_width * (usage / budget) as f32).max(10.0), 30.0),
+                                        Sense::empty(),
+                                    );
+                                    let background_rect = filled_rect.with_max_x(max_width);
+                                    ui.painter().rect_filled(
+                                        background_rect,
+                                        3.0,
+                                        Color32::from_black_alpha(125),
+                                    );
+                                    ui.painter().rect_filled(
+                                        filled_rect,
+                                        3.0,
+                                        Color32::from_rgb(220, 90, 90),
+                                    );
+                                    let vram_text = &format!(
+                                        "{} / {}",
+                                        humanize_bytes_binary!(usage),
+                                        humanize_bytes_binary!(budget),
+                                    );
+                                    ui.painter().text(
+                                        background_rect.center(),
+                                        Align2::CENTER_CENTER,
+                                        vram_text,
+                                        FontId::monospace(13.0),
+                                        Color32::WHITE,
+                                    );
+                                });
+                            }
+                        }
+                    } else {
+                        ui.label(
+                            RichText::new("VRAM memory stats unavailable :(")
+                                .heading()
+                                .strong()
+                                .monospace(),
+                        );
+                    }
                 });
         });
-
-        let Frame {
-            surface_texture,
-            mut encoder,
-            ..
-        } = frame;
-
-        self.profiler.resolve_queries(&mut encoder);
-
-        self.gui_renderer.egui().request_repaint();
-        self.window.pre_present_notify();
-        self.context.queue.submit([encoder.finish()]);
-        surface_texture.present();
-
-        self.profiler.end_frame()?;
-
-        if let Some(profiling_data) = self
-            .profiler
-            .process_finished_frame(self.context.queue.get_timestamp_period())
-        {
-            for (i, profiling_pass) in profiling_data.iter().enumerate() {
-                let time = profiling_pass.time.as_ref().unwrap_or(&(0.0..0.0));
-                self.profiled_passes[i].1 = ((time.end - time.start) * 1000.0) as f32;
-            }
-        }
-
-        Ok(())
     }
 
     pub fn on_resize(&mut self, width: NonZeroU32, height: NonZeroU32) {

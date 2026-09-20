@@ -47,10 +47,10 @@ impl<T> Deref for FreeList<T> {
 
 impl<T: Default + PartialEq> FreeList<T> {
     pub fn push(&mut self, data: T) -> usize {
-        if let Some(index) = self.contains(&data) {
-            self.rc[index] += 1;
-            return index;
-        }
+        // if let Some(index) = self.contains(&data) {
+        //     self.rc[index] += 1;
+        //     return index;
+        // }
 
         let next = self.next;
         if next == self.slots.len() {
@@ -70,13 +70,13 @@ impl<T: Default + PartialEq> FreeList<T> {
 
     #[allow(clippy::unused_unit)]
     pub fn free(&mut self, index: usize) -> () {
-        self.rc[index] -= 1;
-        if self.rc[index] == 0 {
-            self.slots[index] = T::default();
-            self.reserved.set(index, false);
-            self.greatest_used_index = self.reserved.len() - self.reserved.trailing_zeros();
-            self.next = self.next.min(index);
-        }
+        // self.rc[index] -= 1;
+        // if self.rc[index] == 0 {
+        self.slots[index] = T::default();
+        self.reserved.set(index, false);
+        self.greatest_used_index = self.reserved.len() - self.reserved.trailing_zeros();
+        self.next = self.next.min(index);
+        // }
     }
 
     pub fn contains(&self, data: &T) -> Option<usize> {

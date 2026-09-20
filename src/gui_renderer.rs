@@ -8,6 +8,7 @@ use egui_winit::EventResponse;
 use wgpu::{
     LoadOp, Operations, RenderPassColorAttachment, RenderPassDescriptor, StoreOp, TextureFormat,
 };
+use wgpu_profiler::GpuProfiler;
 use winit::{event::WindowEvent, window::Window};
 
 pub struct GuiRenderer {
@@ -45,7 +46,7 @@ impl GuiRenderer {
         self.state.on_window_event(&self.window, event)
     }
 
-    pub fn run(&mut self, frame: &mut Frame, ui: impl FnMut(&mut Ui)) {
+    pub fn run(&mut self, frame: &mut Frame, profiler: &mut GpuProfiler, ui: impl FnMut(&mut Ui)) {
         let raw_input = self.state.take_egui_input(&self.window);
         let full_output = self.state.egui_ctx().run_ui(raw_input, ui);
 
@@ -102,7 +103,7 @@ impl GuiRenderer {
             })
             .forget_lifetime();
 
-        let mut render_pass = frame.profiler.scope("UI", &mut render_pass);
+        let mut render_pass = profiler.scope("UI", &mut render_pass);
 
         self.renderer
             .render(&mut render_pass, &tris, &screen_descriptor);

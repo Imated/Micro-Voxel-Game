@@ -7,7 +7,6 @@ use wgpu::{
     SurfaceConfiguration, SurfaceTexture, TextureFormat, TextureUsages, TextureView,
     TextureViewDescriptor,
 };
-use wgpu_profiler::GpuProfiler;
 use winit::window::Window;
 
 pub struct Display {
@@ -65,7 +64,7 @@ impl Display {
         self.is_surface_configured = true;
     }
 
-    pub fn acquire_frame<'a>(&self, profiler: &'a GpuProfiler) -> Option<Frame<'a>> {
+    pub fn acquire_frame(&self) -> Option<Frame> {
         if !self.is_surface_configured {
             return None;
         }
@@ -97,7 +96,6 @@ impl Display {
                 .context
                 .device
                 .create_command_encoder(&CommandEncoderDescriptor::default()),
-            profiler,
         })
     }
 
@@ -106,9 +104,8 @@ impl Display {
     }
 }
 
-pub struct Frame<'a> {
+pub struct Frame {
     pub surface_texture: SurfaceTexture,
     pub surface_view: TextureView,
     pub encoder: CommandEncoder,
-    pub profiler: &'a GpuProfiler,
 }

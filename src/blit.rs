@@ -8,6 +8,7 @@ use wgpu::{
     RenderPipeline, Sampler, SamplerBindingType, SamplerDescriptor, ShaderStages, StoreOp,
     TextureSampleType, TextureView, TextureViewDimension,
 };
+use wgpu_profiler::GpuProfiler;
 
 pub struct Blitter {
     context: RenderContext,
@@ -81,7 +82,7 @@ impl Blitter {
         );
     }
 
-    pub fn blit(&self, frame: &mut Frame) -> anyhow::Result<()> {
+    pub fn blit(&self, frame: &mut Frame, profiler: &GpuProfiler) -> anyhow::Result<()> {
         let mut render_pass = frame.encoder.begin_render_pass(&RenderPassDescriptor {
             label: Some("Blit Pass"),
             color_attachments: &[Some(RenderPassColorAttachment {
@@ -99,7 +100,7 @@ impl Blitter {
             multiview_mask: None,
         });
 
-        let mut render_pass = frame.profiler.scope("Blit", &mut render_pass);
+        let mut render_pass = profiler.scope("Blit", &mut render_pass);
 
         render_pass.set_pipeline(&*self.pipeline.acquire()?);
         render_pass.set_bind_group(0, &self.bind_group, &[]);
