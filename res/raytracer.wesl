@@ -71,6 +71,8 @@ struct HitInfo {
     hit_normal: vec3<f32>,
     t: f32,
     front_face: bool,
+    last_axis: i32,
+    voxel: vec3<i32>
 }
 
 struct Camera {
@@ -92,6 +94,7 @@ const INFINITY: f32 = 3.402823466e+38;
 const WORLD_SIZE: vec3<i32> = vec3<i32>(8, 1, 8);
 const CHUNK_SIZE: i32 = 8;
 const BRICK_SIZE: i32 = 8;
+const WORLD_VOXELS: vec3<i32> = WORLD_SIZE * CHUNK_SIZE * BRICK_SIZE;
 const EPSILON: f32 = 0.000001;
 const PI: f32 = 3.14159265;
 
@@ -151,13 +154,88 @@ fn shadow_color(p: vec3<f32>, n: vec3<f32>) -> f32 {
     return select(0.0, 1.0, hit.t == INFINITY);
 }
 
+fn compute_ao(info: HitInfo) -> f32 {
+    let n = info.hit_normal;
+    let n_off = vec3<i32>(n);
+
+    let world_half = vec3<f32>(WORLD_VOXELS) * 0.5;
+    let local_frac = info.hit_point + world_half - vec3<f32>(info.voxel);
+
+    var da_pos: vec3<i32>;
+    var db_pos: vec3<i32>;
+    var fa: f32;
+    var fb: f32;
+    if abs(n.x) > 0.5 {
+        da_pos = vec3<i32>(0, 1, 0); db_pos = vec3<i32>(0, 0, 1);
+        fa = local_frac.y; fb = local_frac.z;
+    } else if abs(n.y) > 0.5 {
+        da_pos = vec3<i32>(1, 0, 0); db_pos = vec3<i32>(0, 0, 1);
+        fa = local_frac.x; fb = local_frac.z;
+    } else {
+        da_pos = vec3<i32>(1, 0, 0); db_pos = vec3<i32>(0, 1, 0);
+        fa = local_frac.x; fb = local_frac.y;
+    }
+    let da_neg = -da_pos;
+    let db_neg = -db_pos;
+    let base = info.voxel + n_off;
+
+    let ao00 = ao_corner(base, da_neg, db_neg);
+    let ao10 = ao_corner(base, da_pos, db_neg);
+    let ao01 = ao_corner(base, da_neg, db_pos);
+    let ao11 = ao_corner(base, da_pos, db_pos);
+
+    let fa_c = clamp(fa, 0.0, 1.0);
+    let fb_c = clamp(fb, 0.0, 1.0);
+    let ao_x0 = mix(ao00, ao10, fa_c);
+    let ao_x1 = mix(ao01, ao11, fa_c);
+    return mix(0.0, 1.0, mix(ao_x0, ao_x1, fb_c));
+}
+
+fn get_voxel(p: vec3<i32>) -> bool {
+    if any(p < vec3<i32>(0)) || any(p >= WORLD_VOXELS) {
+        return false;
+    }
+
+    let chunk_cell = p / (CHUNK_SIZE * BRICK_SIZE);
+    let chunk_index = flatten(vec3<u32>(chunk_cell), vec3<u32>(WORLD_SIZE));
+
+    let brick_cell = (p / BRICK_SIZE) & vec3<i32>(CHUNK_SIZE - 1);
+    let brick_slot = flatten(vec3<u32>(brick_cell), vec3<u32>(u32(CHUNK_SIZE)));
+    if ((chunks[chunk_index].brick_mask[brick_slot >> 5u] >> (brick_slot & 31u)) & 1u) == 0u {
+        return false;
+    }
+
+    let brick_index = chunks[chunk_index].brick_indices[brick_slot];
+    let bit = flatten(vec3<u32>(p & vec3<i32>(BRICK_SIZE - 1)), vec3<u32>(u32(BRICK_SIZE)));
+    return ((brick_pool[brick_index].occupancy_mask[bit >> 5u] >> (bit & 31u)) & 1u) != 0u;
+}
+
+fn get_voxel_world(pos: vec3<f32>) -> bool {
+    let world_half = vec3<f32>(WORLD_VOXELS) * 0.5;
+    return get_voxel(vec3<i32>(floor(pos + world_half)));
+}
+
+fn ao_occluder(p: vec3<i32>) -> bool {
+    return get_voxel(p);
+}
+
+fn ao_corner(face_base: vec3<i32>, da: vec3<i32>, db: vec3<i32>) -> f32 {
+    let s1 = ao_occluder(face_base + da);
+    let s2 = ao_occluder(face_base + db);
+    let cd = ao_occluder(face_base + da + db);
+    // Full occlusion if both side voxels are solid (corner case).
+    if (s1 && s2) { return 0.35; }
+    let cnt = i32(s1) + i32(s2) + i32(cd);
+    return 1.0 - f32(cnt) * 0.22;
+}
+
 fn voxel_color(info: HitInfo) -> vec4<f32> {
     let albedo = vec3<f32>(0.12, 0.32, 0.06);
     let roughness = 0.85;
     let F0 = vec3<f32>(0.04);
 
-    let light_color = vec3<f32>(1.0, 0.95, 0.85) * 3.5;
-    let ambient_color = vec3<f32>(0.5, 0.7, 1.0) * 0.25;
+    let light_color = vec3<f32>(1.0, 0.95, 0.85) * 2.5;
+    let ambient_color = vec3<f32>(0.5, 0.7, 1.0) * 0.7;
 
     let N = normalize(info.hit_normal);
     let V = normalize(camera.position.xyz - info.hit_point);
@@ -178,9 +256,10 @@ fn voxel_color(info: HitInfo) -> vec4<f32> {
     let shadow_color = shadow_color(info.hit_point, N);
 
     let BRDF = Kd * lambert + cook_torrance;
-    let outgoing_light = BRDF * light_color * max(dot(L, N) * shadow_color, 0.0);
-    let ambient = albedo * ambient_color;
-
+    const AO_DIRECT: f32 = 1.5;
+    let ao = compute_ao(info);
+    let outgoing_light = BRDF * light_color * max(dot(L, N) * shadow_color, 0.0) * mix(1.0, ao, AO_DIRECT);
+    let ambient = albedo * ambient_color * ao;
     return vec4<f32>(outgoing_light + ambient, 1.0);
 }
 
@@ -221,6 +300,7 @@ struct Dda {
     t_max: vec3<f32>,
     t: f32,
     normal: vec3<f32>,
+    last_axis: i32,
 }
 
 fn dda_begin(ray: Ray, t: f32, cell_size: f32, lo: vec3<i32>, hi: vec3<i32>, normal: vec3<f32>) -> Dda {
@@ -228,16 +308,24 @@ fn dda_begin(ray: Ray, t: f32, cell_size: f32, lo: vec3<i32>, hi: vec3<i32>, nor
     let cell = clamp(vec3<i32>(floor(grid_pos)), lo, hi - vec3<i32>(1));
     let cb = select(vec3<f32>(cell), vec3<f32>(cell) + 1, ray.direction > vec3<f32>(0));
     let t_max = select(vec3<f32>(INFINITY), t + (cb - grid_pos) * ray.inv_dir * cell_size, ray.step != vec3<i32>(0));
-    return Dda(cell, t_max, t, normal);
+    return Dda(cell, t_max, t, normal, 0);
 }
 
 fn dda_step(dda: Dda, ray: Ray, t_delta: vec3<f32>) -> Dda {
     let crossed = dda.t_max <= min(dda.t_max.yzx, dda.t_max.zxy);
+    var axis = 0;
+    if ray.step.y != 0 {
+        axis = 1;
+    }
+    if ray.step.z != 0 {
+        axis = 2;
+    }
     return Dda(
         dda.cell + vec3<i32>(crossed) * ray.step,
         select(dda.t_max, dda.t_max + t_delta, crossed),
         min(dda.t_max.x, min(dda.t_max.y, dda.t_max.z)),
         -vec3<f32>(crossed) * vec3<f32>(ray.step),
+        axis
     );
 }
 
@@ -261,7 +349,7 @@ fn ray_aabb(box_min: vec3<f32>, box_max: vec3<f32>, ray: Ray) -> HitInfo {
 
     // hit info stuff
     if t == INFINITY {
-        return HitInfo(vec3<f32>(0.0), vec3<f32>(0.0), t, false);
+        return HitInfo(vec3<f32>(0), vec3<f32>(0), t, false, 0, vec3<i32>(0));
     }
 
     let hit_point = ray.origin + ray.direction * t;
@@ -281,7 +369,7 @@ fn ray_aabb(box_min: vec3<f32>, box_max: vec3<f32>, ray: Ray) -> HitInfo {
         normal = -outward_normal;
     }
 
-    return HitInfo(hit_point, normal, t, front_face);
+    return HitInfo(hit_point, normal, t, front_face, 0, vec3<i32>(0));
 }
 
 fn chunk_is_empty(chunk_index: u32) -> bool {
@@ -293,7 +381,7 @@ fn chunk_is_empty(chunk_index: u32) -> bool {
 }
 
 fn trace_ray(ray: Ray) -> HitInfo {
-    let miss = HitInfo(vec3<f32>(0.0), vec3<f32>(0.0), INFINITY, false);
+    let miss = HitInfo(vec3<f32>(0.0), vec3<f32>(0.0), INFINITY, false, 0, vec3<i32>(0));
     let world_half = vec3<f32>(WORLD_SIZE * CHUNK_SIZE) * f32(BRICK_SIZE / 2);
     let world_hit = ray_aabb(-world_half, world_half, ray);
     if world_hit.t == INFINITY {
@@ -327,7 +415,7 @@ fn trace_ray(ray: Ray) -> HitInfo {
                     loop {
                         let bit = flatten(vec3<u32>(voxel.cell & vec3<i32>(BRICK_SIZE - 1)), vec3<u32>(u32(BRICK_SIZE)));
                         if ((brick_pool[brick_index].occupancy_mask[bit >> 5] >> (bit & 31)) & 1) != 0 {
-                            return HitInfo(ray.origin + ray.direction * voxel.t, voxel.normal, voxel.t, true);
+                            return HitInfo(ray.origin + ray.direction * voxel.t, voxel.normal, voxel.t, true, voxel.last_axis, voxel.cell);
                         }
 
                         voxel = dda_step(voxel, grid_ray, voxel_t_delta);
