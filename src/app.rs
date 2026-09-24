@@ -12,7 +12,7 @@ use glam::{Vec2, Vec3, ivec3};
 use humanize_bytes::humanize_bytes_binary;
 use std::num::NonZeroU32;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tracing::info;
 use wgpu::wgc::api::Vulkan;
 use wgpu_profiler::{GpuProfiler, GpuProfilerSettings};
@@ -33,7 +33,13 @@ pub struct App {
     profiler: GpuProfiler,
 
     profiled_passes: [(&'static str, f32); 3],
+
+    vk_physical_device: ash::vk::PhysicalDevice,
+    vram_stats: (u64, u64),
+    vram_last_query: Instant,
 }
+
+const VRAM_QUERY_INTERVAL: Duration = Duration::from_millis(250);
 
 impl App {
     pub fn new(window: Arc<Window>) -> anyhow::Result<Self> {
@@ -72,6 +78,18 @@ impl App {
 
         info!("bricks: {}", world_renderer.brick_pool.len());
 
+        let hal_instance = unsafe { context.instance.as_hal::<Vulkan>() }.expect("use vulkan noob");
+        let vk_physical_device = unsafe {
+            hal_instance
+                .shared_instance()
+                .raw_instance()
+                .enumerate_physical_devices()
+                .expect("fym u have no gpu")
+                .first()
+                .expect("fym u have no gpu")
+                .clone()
+        };
+
         Ok(Self {
             window,
             context,
@@ -84,17 +102,22 @@ impl App {
             gui_renderer,
             profiler,
             profiled_passes: [("Raytracing", 0.0), ("Blit", 0.0), ("UI", 0.0)],
+            vk_physical_device,
+            vram_stats: (1, 1),
+            vram_last_query: Instant::now(),
         })
     }
 
     pub fn render(&mut self, delta_time: Duration) -> anyhow::Result<()> {
+        self.camera.update(delta_time);
+        self.world_renderer.update();
+        self.update_vram_stats();
+
         // acquire frame and skip if smth happened and hope it works next frame
         let Some(mut frame) = self.display.acquire_frame() else {
             return Ok(());
         };
 
-        self.camera.update(delta_time);
-        self.world_renderer.update();
         self.renderer.raytrace_pass(
             &mut frame,
             &self.output,
@@ -196,77 +219,73 @@ impl App {
                     });
                     ui.separator();
                     ui.label(RichText::new("VRAM usage:").heading().strong().monospace());
-                    if let Some(hal_instance) = unsafe { self.context.instance.as_hal::<Vulkan>() }
-                    {
-                        use ash::vk;
-
-                        let instance = hal_instance.shared_instance().raw_instance();
-                        let raw_physical_device =
-                            unsafe { instance.enumerate_physical_devices().unwrap()[0] };
-
-                        let mut memory_budget_properties =
-                            PhysicalDeviceMemoryBudgetPropertiesEXT::default();
-                        let mut memory_properties = vk::PhysicalDeviceMemoryProperties2::default()
-                            .push_next(&mut memory_budget_properties);
-
-                        unsafe {
-                            instance.get_physical_device_memory_properties2(
-                                raw_physical_device,
-                                &mut memory_properties,
-                            );
-                        };
-
-                        for (i, heap) in memory_properties
-                            .memory_properties
-                            .memory_heaps
-                            .iter()
-                            .enumerate()
-                        {
-                            if heap.flags.contains(vk::MemoryHeapFlags::DEVICE_LOCAL) {
-                                ui.indent(67, |ui| {
-                                    let budget = memory_budget_properties.heap_budget[i];
-                                    let usage = memory_budget_properties.heap_usage[i];
-                                    let max_width = 340.0;
-                                    let (filled_rect, _) = ui.allocate_exact_size(
-                                        vec2((max_width * (usage / budget) as f32).max(10.0), 30.0),
-                                        Sense::empty(),
-                                    );
-                                    let background_rect = filled_rect.with_max_x(max_width);
-                                    ui.painter().rect_filled(
-                                        background_rect,
-                                        3.0,
-                                        Color32::from_black_alpha(125),
-                                    );
-                                    ui.painter().rect_filled(
-                                        filled_rect,
-                                        3.0,
-                                        Color32::from_rgb(220, 90, 90),
-                                    );
-                                    let vram_text = &format!(
-                                        "{} / {}",
-                                        humanize_bytes_binary!(usage),
-                                        humanize_bytes_binary!(budget),
-                                    );
-                                    ui.painter().text(
-                                        background_rect.center(),
-                                        Align2::CENTER_CENTER,
-                                        vram_text,
-                                        FontId::monospace(13.0),
-                                        Color32::WHITE,
-                                    );
-                                });
-                            }
-                        }
-                    } else {
-                        ui.label(
-                            RichText::new("VRAM memory stats unavailable :(")
-                                .heading()
-                                .strong()
-                                .monospace(),
+                    ui.indent(67, |ui| {
+                        let (usage, budget) = self.vram_stats;
+                        let max_width = 340.0;
+                        let (filled_rect, _) = ui.allocate_exact_size(
+                            vec2((max_width * (usage / budget) as f32).max(10.0), 30.0),
+                            Sense::empty(),
                         );
-                    }
+                        let background_rect = filled_rect.with_max_x(max_width);
+                        ui.painter().rect_filled(
+                            background_rect,
+                            3.0,
+                            Color32::from_black_alpha(125),
+                        );
+                        ui.painter()
+                            .rect_filled(filled_rect, 3.0, Color32::from_rgb(220, 90, 90));
+                        let vram_text = &format!(
+                            "{} / {}",
+                            humanize_bytes_binary!(usage),
+                            humanize_bytes_binary!(budget),
+                        );
+                        ui.painter().text(
+                            background_rect.center(),
+                            Align2::CENTER_CENTER,
+                            vram_text,
+                            FontId::monospace(13.0),
+                            Color32::WHITE,
+                        );
+                    });
                 });
         });
+    }
+
+    fn update_vram_stats(&mut self) {
+        if self.vram_last_query.elapsed() < VRAM_QUERY_INTERVAL {
+            return;
+        }
+        self.vram_last_query = Instant::now();
+
+        let Some(hal_instance) = (unsafe { self.context.instance.as_hal::<Vulkan>() }) else {
+            return;
+        };
+        let instance = hal_instance.shared_instance().raw_instance();
+
+        let mut memory_budget_properties = PhysicalDeviceMemoryBudgetPropertiesEXT::default();
+        let mut memory_properties = ash::vk::PhysicalDeviceMemoryProperties2::default()
+            .push_next(&mut memory_budget_properties);
+
+        unsafe {
+            instance.get_physical_device_memory_properties2(
+                self.vk_physical_device,
+                &mut memory_properties,
+            );
+        };
+
+        self.vram_stats = memory_properties
+            .memory_properties
+            .memory_heaps
+            .iter()
+            .enumerate()
+            .find(|(_, heap)| heap.flags.contains(ash::vk::MemoryHeapFlags::DEVICE_LOCAL))
+            .map(|(i, _)| {
+                (
+                    memory_budget_properties.heap_usage[i],
+                    memory_budget_properties.heap_budget[i],
+                )
+            })
+            .expect("no vram? huh");
     }
 
     pub fn on_resize(&mut self, width: NonZeroU32, height: NonZeroU32) {

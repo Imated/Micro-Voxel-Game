@@ -11,8 +11,10 @@ pub const BRICK_MASK_WORDS: usize = BRICKS_PER_CHUNK / 32;
 #[repr(C)]
 #[derive(Debug, Copy, Clone, Pod, Zeroable)]
 pub struct Chunk {
-    pub bricks: [u32; BRICKS_PER_CHUNK],
     pub brick_mask: [u32; BRICK_MASK_WORDS],
+    pub nonempty: u32,
+    pad: [u32; 3],
+    pub bricks: [u32; BRICKS_PER_CHUNK],
 }
 
 impl Chunk {
@@ -23,6 +25,8 @@ impl Chunk {
             // slot 1 in brick pool which we just hardcode to full rn
             bricks: [1; BRICKS_PER_CHUNK],
             brick_mask: [u32::MAX; BRICK_MASK_WORDS],
+            nonempty: 1,
+            pad: [0; 3],
         }
     }
 
@@ -32,6 +36,8 @@ impl Chunk {
             // slot 0 in brick pool is always empty
             bricks: [0; BRICKS_PER_CHUNK],
             brick_mask: [0; BRICK_MASK_WORDS],
+            nonempty: 0,
+            pad: [0; 3],
         }
     }
 
@@ -42,5 +48,6 @@ impl Chunk {
                 self.brick_mask[slot / 32] |= 1 << (slot % 32);
             }
         }
+        self.nonempty = u32::from(self.brick_mask.iter().any(|&w| w != 0));
     }
 }
