@@ -80,10 +80,8 @@ struct Camera {
 }
 
 struct Chunk {
-    // mask first: a chunk-level DDA step only touches these words, so keeping
-    // them ahead of the 2 KiB index table keeps the hot path in one cache line
     brick_mask: array<u32, 16>, // CHUNK_SIZE^3 / 32
-    nonempty: u32, // != 0 if any brick_mask bit is set, built on the CPU
+    nonempty: u32,
     _pad: array<u32, 3>,
     brick_indices: array<u32, 512>, // CHUNK_SIZE^3
 }
@@ -285,7 +283,7 @@ fn main(@builtin(global_invocation_id)id: vec3<u32>) {
         return;
     }
 
-    let uv = vec2<f32>(id.xy) / vec2<f32>(size);
+    let uv = (vec2<f32>(id.xy) + 0.5) / vec2<f32>(size);
     let uv_centered = uv * 2.0 - 1.0;
 
     let aspect = f32(size.x) / f32(size.y);
@@ -323,7 +321,10 @@ fn dda_begin(ray: Ray, t: f32, cell_size: f32, lo: vec3<i32>, hi: vec3<i32>, nor
 }
 
 fn dda_step(dda: Dda, ray: Ray, t_delta: vec3<f32>) -> Dda {
-    let crossed = dda.t_max <= min(dda.t_max.yzx, dda.t_max.zxy);
+    let t = min(dda.t_max.x, min(dda.t_max.y, dda.t_max.z));
+    let x = dda.t_max.x <= t;
+    let y = !x && dda.t_max.y <= t;
+    let crossed = vec3<bool>(x, y, !x && !y);
     return Dda(
         dda.cell + vec3<i32>(crossed) * ray.step,
         select(dda.t_max, dda.t_max + t_delta, crossed),
