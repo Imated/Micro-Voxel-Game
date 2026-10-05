@@ -99,6 +99,16 @@ const WORLD_VOXELS: vec3<i32> = WORLD_SIZE * CHUNK_SIZE * BRICK_SIZE;
 const EPSILON: f32 = 0.000001;
 const PI: f32 = 3.14159265;
 
+// Rays per pixel is SSAA * SSAA, on a regular sub-pixel grid. One sample per pixel cannot
+// represent voxel edges once a voxel projects to less than a pixel, which breaks distant
+// block edges into disconnected speckle.
+const SSAA: i32 = 2;
+
+// Debug views. DEBUG_NORMALS paints the surface normal of every hit; DEBUG_VALIDATE
+// re-traces each ray without the acceleration structure and flags any disagreement.
+const DEBUG_NORMALS: bool = false;
+const DEBUG_VALIDATE: bool = false;
+
 const SUN_DIR: vec3<f32> = vec3<f32>(0.3, 1.0, 0.5);
 const SUN_ANGULAR_RADIUS: f32 = 0.0093;
 
@@ -246,16 +256,11 @@ fn voxel_color(info: HitInfo) -> vec4<f32> {
     let H = normalize(V + L);
     let N_dot_L = dot(L, N);
 
-    const AO_DIRECT: f32 = 1.5;
+    const AO_DIRECT: f32 = 1.0;
     let ao = compute_ao(info);
     let ambient = albedo * ambient_color * ao;
 
     if N_dot_L <= 0.0 {
-        return vec4<f32>(ambient, 1.0);
-    }
-
-    let shadow = shadow_color(info.hit_point, N, L);
-    if shadow <= 0.0 {
         return vec4<f32>(ambient, 1.0);
     }
 
@@ -274,6 +279,18 @@ fn voxel_color(info: HitInfo) -> vec4<f32> {
     return vec4<f32>(outgoing_light + ambient, 1.0);
 }
 
+fn camera_ray(pixel: vec2<f32>, size: vec2<u32>) -> Ray {
+    let uv_centered = (pixel / vec2<f32>(size)) * 2.0 - 1.0;
+    let aspect = f32(size.x) / f32(size.y);
+
+    const fov = 67.0;
+    const focal_length = 1 / tan(radians(fov) / 2);
+    let direction = vec3<f32>(uv_centered.x * aspect, -uv_centered.y, -focal_length);
+    let rotation = mat3x3<f32>(camera.rotation[0].xyz, camera.rotation[1].xyz, camera.rotation[2].xyz);
+
+    return create_ray(camera.position.xyz, normalize(rotation * direction));
+}
+
 @compute
 @workgroup_size(16, 16)
 fn main(@builtin(global_invocation_id)id: vec3<u32>) {
@@ -283,17 +300,7 @@ fn main(@builtin(global_invocation_id)id: vec3<u32>) {
         return;
     }
 
-    let uv = (vec2<f32>(id.xy) + 0.5) / vec2<f32>(size);
-    let uv_centered = uv * 2.0 - 1.0;
-
-    let aspect = f32(size.x) / f32(size.y);
-
-    const fov = 67.0;
-    const focal_length = 1 / tan(radians(fov) / 2);
-    let camera_pos: vec3<f32> = camera.position.xyz;
-    let direction = vec3<f32>(uv_centered.x * aspect, -uv_centered.y, -focal_length);
-
-    let ray = create_ray(camera_pos, normalize(mat3x3<f32>(camera.rotation[0].xyz, camera.rotation[1].xyz, camera.rotation[2].xyz) * direction));
+    let ray = camera_ray(vec2<f32>(id.xy), size);
     let info = trace_ray(ray);
 
     var color: vec4<f32>;
@@ -314,7 +321,9 @@ struct Dda {
 
 fn dda_begin(ray: Ray, t: f32, cell_size: f32, lo: vec3<i32>, hi: vec3<i32>, normal: vec3<f32>) -> Dda {
     let grid_pos = (ray.origin + ray.direction * t) / cell_size;
-    let cell = clamp(vec3<i32>(floor(grid_pos)), lo, hi - vec3<i32>(1));
+    let gp_floor = floor(grid_pos);
+    let leaving = (grid_pos == gp_floor) & (ray.step < vec3<i32>(0));
+    let cell = clamp(vec3<i32>(gp_floor) - vec3<i32>(leaving), lo, hi - vec3<i32>(1));
     let cb = select(vec3<f32>(cell), vec3<f32>(cell) + 1, ray.direction > vec3<f32>(0));
     let t_max = select(vec3<f32>(INFINITY), t + (cb - grid_pos) * ray.inv_dir * cell_size, ray.step != vec3<i32>(0));
     return Dda(cell, t_max, t, normal);
@@ -334,7 +343,8 @@ fn dda_step(dda: Dda, ray: Ray, t_delta: vec3<f32>) -> Dda {
 }
 
 fn ray_aabb(box_min: vec3<f32>, box_max: vec3<f32>, ray: Ray) -> HitInfo {
-    let safe_dir = select(vec3<f32>(EPSILON), ray.direction, abs(ray.direction) > vec3<f32>(EPSILON));
+    let dir_sign = select(vec3<f32>(1.0), vec3<f32>(-1.0), ray.direction < vec3<f32>(0.0));
+    let safe_dir = select(dir_sign * EPSILON, ray.direction, abs(ray.direction) > vec3<f32>(EPSILON));
     let inv_dir = 1.0 / safe_dir;
     let t_min = (box_min - ray.origin) * inv_dir;
     let t_max = (box_max - ray.origin) * inv_dir;
