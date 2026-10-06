@@ -3,9 +3,12 @@ use crate::render_context::RenderContext;
 use crate::util::constants::WORLD_SIZE;
 use crate::util::constants::WORLD_SIZE_HALF;
 use crate::util::flatten;
-use crate::world::brick_pool::BrickPool;
+use crate::world::ChunkPos;
 use crate::world::chunk::Chunk;
-use crate::world::chunk::ChunkPos;
+use crate::world::render::brick_pool::BrickPool;
+use crate::world::render::gpu_chunk::GpuChunk;
+use std::sync::Arc;
+use std::sync::RwLock;
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupLayout, BindGroupLayoutDescriptor, ShaderStages,
 };
@@ -14,10 +17,10 @@ pub struct WorldRenderer {
     context: RenderContext,
 
     pub brick_pool: BrickPool,
-    chunk_grid: Box<[Chunk]>,
+    chunk_grid: Box<[GpuChunk]>,
     // 32x1x32 chunk grid, eventually somehow get this from World struct,
     // oh and also to future me, make ts separate from the World struct Chunk type bc this chunk sohuld be like GpuChunk and store brick map and stuff idk u got this
-    chunks: TypedArrayBuffer<Chunk>,
+    chunks: TypedArrayBuffer<GpuChunk>,
     chunks_layout: BindGroupLayout,
     chunks_bind_group: BindGroup,
     is_dirty: bool,
@@ -27,7 +30,7 @@ impl WorldRenderer {
     #[must_use]
     pub fn new(context: RenderContext) -> Self {
         let chunk_grid =
-            vec![Chunk::new_from_empty(); (WORLD_SIZE.x * WORLD_SIZE.y * WORLD_SIZE.z) as usize]
+            vec![GpuChunk::default(); (WORLD_SIZE.x * WORLD_SIZE.y * WORLD_SIZE.z) as usize]
                 .into_boxed_slice();
 
         let buffer = TypedArrayBuffer::new_storage(context.clone(), &chunk_grid);
@@ -85,8 +88,9 @@ impl WorldRenderer {
     pub fn load_chunk(&mut self, coords: &ChunkPos) {
         let offsetted_coords = coords.0 + WORLD_SIZE_HALF.as_ivec3();
         let index = (offsetted_coords.rem_euclid(WORLD_SIZE.as_ivec3())).as_uvec3();
+        let chunk = Arc::new(RwLock::new(Chunk::new(coords)));
         self.chunk_grid[flatten(index.x, index.y, index.z, WORLD_SIZE) as usize] =
-            self.brick_pool.gen_test_chunk(coords);
+            GpuChunk::new(&chunk, &mut self.brick_pool);
         self.is_dirty = true;
     }
 
@@ -94,7 +98,7 @@ impl WorldRenderer {
         let offsetted_coords = coords.0 + WORLD_SIZE_HALF.as_ivec3();
         let index = (offsetted_coords.rem_euclid(WORLD_SIZE.as_ivec3())).as_uvec3();
         self.chunk_grid[flatten(index.x, index.y, index.z, WORLD_SIZE) as usize] =
-            Chunk::new_from_empty();
+            GpuChunk::default();
         self.is_dirty = true;
     }
 

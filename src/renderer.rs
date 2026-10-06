@@ -1,6 +1,6 @@
 use crate::display::Frame;
 use crate::render_context::RenderContext;
-use crate::world::world_renderer::WorldRenderer;
+use crate::world::render::world_renderer::WorldRenderer;
 use crate::{camera::Camera, util::pipeline::HotReloadPipeline};
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
