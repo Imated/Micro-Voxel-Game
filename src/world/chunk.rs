@@ -21,8 +21,8 @@ pub struct Chunk {
 
 impl Chunk {
     #[must_use]
-    pub fn new(coords: &ChunkPos) -> Self {
-        let node = SafeNode::from_encoded_node_tree("KQkIAACAqEIEGwAAgEIE")
+    pub fn new(coords: ChunkPos) -> Self {
+        let node = SafeNode::from_encoded_node_tree("KQkI@BSEMEGwAAgEIE")
             .unwrap_or_else(|_| Simplex::default().build().0);
 
         let chunk_voxels_x = (CHUNK_SIZE.x * BRICK_SIZE.x) as usize;

@@ -5,8 +5,9 @@ use crate::gui_renderer::GuiRenderer;
 use crate::render_context::RenderContext;
 use crate::renderer::{RenderTexture, Renderer};
 use crate::util::constants::{BRICK_SIZE, CHUNK_SIZE, VOXELS_PER_METER, WORLD_SIZE};
-use crate::world::ChunkPos;
+use crate::world::chunk::CHUNK_SIZE_IN_VOXELS;
 use crate::world::render::world_renderer::WorldRenderer;
+use crate::world::{ChunkPos, World};
 use ash::vk::PhysicalDeviceMemoryBudgetPropertiesEXT;
 use egui::{Align2, Color32, FontId, RichText, Sense, vec2};
 use glam::{Vec2, Vec3, ivec3};
@@ -29,6 +30,7 @@ pub struct App {
     renderer: Renderer,
     blitter: Blitter,
     output: RenderTexture,
+    world: World,
     world_renderer: WorldRenderer,
     gui_renderer: GuiRenderer,
     profiler: GpuProfiler,
@@ -53,9 +55,10 @@ impl App {
         );
         let world_bottom = -((WORLD_SIZE.y * CHUNK_SIZE.y * BRICK_SIZE.y) as f32) / 2.0;
         let eye_height = 1.8 * VOXELS_PER_METER;
-        let start_y = world_bottom + BRICK_SIZE.y as f32 + eye_height;
+        let start_y = world_bottom + CHUNK_SIZE_IN_VOXELS.y as f32 + eye_height;
         let camera = Camera::new(&context, Vec3::new(0.0, start_y, 0.0), 0.0_f32, 0.0_f32);
-        let mut world_renderer = WorldRenderer::new(context.clone());
+        let mut world = World::default();
+        let world_renderer = WorldRenderer::new(context.clone());
         let renderer = Renderer::new(context.clone(), &output, &camera, &world_renderer)?;
         let blitter = Blitter::new(context.clone(), &output)?;
         let gui_renderer =
@@ -72,7 +75,7 @@ impl App {
         for x in -4..4 {
             for y in 0..1 {
                 for z in -4..4 {
-                    world_renderer.load_chunk(&ChunkPos(ivec3(x, y, z)));
+                    world.load_chunk(ChunkPos(ivec3(x, y, z)));
                 }
             }
         }
@@ -106,12 +109,14 @@ impl App {
             vk_physical_device,
             vram_stats: (1, 1),
             vram_last_query: Instant::now(),
+            world,
         })
     }
 
     pub fn render(&mut self, delta_time: Duration) -> anyhow::Result<()> {
         self.camera.update(delta_time);
-        self.world_renderer.update();
+        let chunks = self.world.update();
+        self.world_renderer.update(chunks);
         self.update_vram_stats();
 
         // acquire frame and skip if smth happened and hope it works next frame

@@ -7,8 +7,8 @@ use crate::world::ChunkPos;
 use crate::world::chunk::Chunk;
 use crate::world::render::brick_pool::BrickPool;
 use crate::world::render::gpu_chunk::GpuChunk;
+use std::collections::HashMap;
 use std::sync::Arc;
-use std::sync::RwLock;
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupLayout, BindGroupLayoutDescriptor, ShaderStages,
 };
@@ -18,12 +18,9 @@ pub struct WorldRenderer {
 
     pub brick_pool: BrickPool,
     chunk_grid: Box<[GpuChunk]>,
-    // 32x1x32 chunk grid, eventually somehow get this from World struct,
-    // oh and also to future me, make ts separate from the World struct Chunk type bc this chunk sohuld be like GpuChunk and store brick map and stuff idk u got this
     chunks: TypedArrayBuffer<GpuChunk>,
     chunks_layout: BindGroupLayout,
     chunks_bind_group: BindGroup,
-    is_dirty: bool,
 }
 
 impl WorldRenderer {
@@ -60,46 +57,31 @@ impl WorldRenderer {
             chunks_layout: layout,
             chunks_bind_group: bind_group,
             chunk_grid,
-            is_dirty: false,
             context,
         }
     }
 
-    pub fn update(&mut self) {
-        if self.is_dirty {
+    pub fn update(&mut self, chunks: Option<HashMap<ChunkPos, Arc<Chunk>>>) {
+        if let Some(chunks) = chunks {
+            for (pos, chunk) in chunks {
+                let offsetted_coords = pos.0 + WORLD_SIZE_HALF.as_ivec3();
+                let index = (offsetted_coords.rem_euclid(WORLD_SIZE.as_ivec3())).as_uvec3();
+                self.chunk_grid[flatten(index.x, index.y, index.z, WORLD_SIZE) as usize] =
+                    GpuChunk::new(&chunk, &mut self.brick_pool);
+            }
             self.chunks.update(&self.chunk_grid);
-            self.is_dirty = false;
         }
 
-        if !self.brick_pool.update() {
-            return;
+        if self.brick_pool.update() {
+            self.chunks_bind_group = self.context.device.create_bind_group(&BindGroupDescriptor {
+                label: Some("World Renderer Bind Group"),
+                layout: self.layout(),
+                entries: &[
+                    self.chunks.as_bind_group_entry(0),
+                    self.brick_pool.as_bind_group_entry(1),
+                ],
+            });
         }
-
-        self.chunks_bind_group = self.context.device.create_bind_group(&BindGroupDescriptor {
-            label: Some("World Renderer Bind Group"),
-            layout: self.layout(),
-            entries: &[
-                self.chunks.as_bind_group_entry(0),
-                self.brick_pool.as_bind_group_entry(1),
-            ],
-        });
-    }
-
-    pub fn load_chunk(&mut self, coords: &ChunkPos) {
-        let offsetted_coords = coords.0 + WORLD_SIZE_HALF.as_ivec3();
-        let index = (offsetted_coords.rem_euclid(WORLD_SIZE.as_ivec3())).as_uvec3();
-        let chunk = Arc::new(RwLock::new(Chunk::new(coords)));
-        self.chunk_grid[flatten(index.x, index.y, index.z, WORLD_SIZE) as usize] =
-            GpuChunk::new(&chunk, &mut self.brick_pool);
-        self.is_dirty = true;
-    }
-
-    pub fn unload_chunk(&mut self, coords: &ChunkPos) {
-        let offsetted_coords = coords.0 + WORLD_SIZE_HALF.as_ivec3();
-        let index = (offsetted_coords.rem_euclid(WORLD_SIZE.as_ivec3())).as_uvec3();
-        self.chunk_grid[flatten(index.x, index.y, index.z, WORLD_SIZE) as usize] =
-            GpuChunk::default();
-        self.is_dirty = true;
     }
 
     #[must_use]

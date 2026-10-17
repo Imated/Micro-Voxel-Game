@@ -1,4 +1,3 @@
-use static_assertions::assert_impl_all;
 use wgpu::{
     Adapter, BackendOptions, Backends, Device, DeviceDescriptor, ExperimentalFeatures, Features,
     Instance, InstanceDescriptor, InstanceFlags, Limits, MemoryBudgetThresholds, MemoryHints,
@@ -14,8 +13,6 @@ pub struct RenderContext {
     pub adapter: Adapter,
     pub queue: Queue,
 }
-
-assert_impl_all!(RenderContext: Send, Sync);
 
 impl RenderContext {
     pub async fn new() -> anyhow::Result<Self> {

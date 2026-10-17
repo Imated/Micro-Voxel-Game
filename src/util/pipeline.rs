@@ -6,14 +6,13 @@ use notify::{
 use notify_debouncer_full::{DebounceEventResult, Debouncer, NoCache, new_debouncer};
 use std::{
     borrow::Cow,
-    iter::once,
     ops::Deref,
     path::Path,
     sync::{Arc, Mutex, MutexGuard},
     time::Duration,
 };
 use tracing::{error, info};
-use wesl::{ModulePath, Wesl};
+use wesl::Compiler;
 use wgpu::{
     BlendState, ColorTargetState, ColorWrites, ComputePipeline, ComputePipelineDescriptor,
     ErrorFilter, FragmentState, MultisampleState, PipelineCompilationOptions, PipelineLayout,
@@ -162,11 +161,8 @@ impl<P: Pipeline + Send + Sync + 'static> Deref for HotReloadPipeline<P> {
 }
 
 fn make_wesl_shader(context: &RenderContext, path: &str) -> anyhow::Result<ShaderModule> {
-    let compiler = Wesl::new("res/");
-    let src = compiler
-        .compile(&ModulePath::new_root().join(once(path.into())))?
-        .to_string();
-
+    let compiler = Compiler::default();
+    let src = compiler.compile(format!("res/{path}"))?.to_string();
     let guard = context.device.push_error_scope(ErrorFilter::Validation);
     let shader = context.device.create_shader_module(ShaderModuleDescriptor {
         label: None,

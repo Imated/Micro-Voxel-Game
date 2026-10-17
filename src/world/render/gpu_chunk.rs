@@ -1,6 +1,6 @@
 use bitvec::{bitvec, order::Lsb0};
 use bytemuck::{Pod, Zeroable};
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 use crate::{
     util::{
@@ -38,9 +38,8 @@ impl Default for GpuChunk {
 }
 
 impl GpuChunk {
-    pub fn new(chunk: &Arc<RwLock<Chunk>>, brick_pool: &mut BrickPool) -> Self {
+    pub fn new(chunk: &Arc<Chunk>, brick_pool: &mut BrickPool) -> Self {
         let mut gpu_chunk = Self::default();
-        let chunk_guard = chunk.read().unwrap();
 
         for bx in 0..CHUNK_SIZE.x {
             for by in 0..CHUNK_SIZE.y {
@@ -55,7 +54,7 @@ impl GpuChunk {
                                 let chunk_y = (by * BRICK_SIZE.y + vy) as usize;
                                 let chunk_z = (bz * BRICK_SIZE.z + vz) as usize;
 
-                                let solid = chunk_guard.voxels[chunk_x][chunk_y][chunk_z] != 0;
+                                let solid = chunk.voxels[chunk_x][chunk_y][chunk_z] != 0;
                                 any_solid |= solid;
                                 occupancy.set(flatten(vx, vy, vz, BRICK_SIZE) as usize, solid);
                             }
