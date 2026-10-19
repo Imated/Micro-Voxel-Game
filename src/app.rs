@@ -9,7 +9,7 @@ use crate::world::chunk::CHUNK_SIZE_IN_VOXELS;
 use crate::world::render::world_renderer::WorldRenderer;
 use crate::world::{ChunkPos, World};
 use ash::vk::PhysicalDeviceMemoryBudgetPropertiesEXT;
-use egui::{Align2, Color32, FontId, RichText, Sense, vec2};
+use egui::{Align2, Color32, FontId, RichText, Sense, Slider, vec2};
 use glam::{Vec2, Vec3, ivec3};
 use humanize_bytes::humanize_bytes_binary;
 use std::num::NonZeroU32;
@@ -40,6 +40,8 @@ pub struct App {
     vk_physical_device: ash::vk::PhysicalDevice,
     vram_stats: (u64, u64),
     vram_last_query: Instant,
+
+    speed: f32,
 }
 
 const VRAM_QUERY_INTERVAL: Duration = Duration::from_millis(250);
@@ -110,11 +112,12 @@ impl App {
             vram_stats: (1, 1),
             vram_last_query: Instant::now(),
             world,
+            speed: 3.0 * VOXELS_PER_METER,
         })
     }
 
     pub fn render(&mut self, delta_time: Duration) -> anyhow::Result<()> {
-        self.camera.update(delta_time);
+        self.camera.update(delta_time, self.speed);
         let chunks = self.world.update();
         self.world_renderer.update(chunks);
         self.update_vram_stats();
@@ -253,6 +256,7 @@ impl App {
                             Color32::WHITE,
                         );
                     });
+                    ui.add(Slider::new(&mut self.speed, 0.0..=500.0).text("Speeeed"));
                 });
         });
     }

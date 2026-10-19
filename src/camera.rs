@@ -107,8 +107,7 @@ impl Camera {
         self.mouse_delta += delta;
     }
 
-    pub fn update(&mut self, delta_time: Duration) {
-        const SPEED: f32 = 3.0 * VOXELS_PER_METER;
+    pub fn update(&mut self, delta_time: Duration, speed: f32) {
         const SENSITIVITY: f32 = 0.001;
 
         let direction = Vec2::new(
@@ -120,10 +119,10 @@ impl Camera {
         let rotation = self.calc_matrix();
         let forward = -rotation.z_axis.truncate().with_y(0.0).normalize_or_zero();
         let right = rotation.x_axis.truncate().with_y(0.0).normalize_or_zero();
-        self.position += forward * direction.y * SPEED * delta_time.as_secs_f32();
-        self.position += right * direction.x * SPEED * delta_time.as_secs_f32();
+        self.position += forward * direction.y * speed * delta_time.as_secs_f32();
+        self.position += right * direction.x * speed * delta_time.as_secs_f32();
 
-        self.position.y = (f32::from(i8::from(self.move_up) - i8::from(self.move_down)) * SPEED)
+        self.position.y = (f32::from(i8::from(self.move_up) - i8::from(self.move_down)) * speed)
             .mul_add(delta_time.as_secs_f32(), self.position.y);
 
         self.yaw = self.mouse_delta.x.mul_add(-SENSITIVITY, self.yaw);
