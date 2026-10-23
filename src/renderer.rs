@@ -1,7 +1,9 @@
+use crate::camera::player_camera_binding;
 use crate::display::Frame;
 use crate::render_context::RenderContext;
 use crate::world::render::world_renderer::WorldRenderer;
 use crate::{camera::Camera, util::pipeline::HotReloadPipeline};
+use anyhow::Context;
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
     BindGroupLayoutEntry, BindingResource, BindingType, ComputePassDescriptor, ComputePipeline,
@@ -112,7 +114,7 @@ impl Renderer {
         &self,
         frame: &mut Frame,
         output: &RenderTexture,
-        camera: &Camera,
+        entity_world: &hecs::World,
         world_renderer: &WorldRenderer,
         profiler: &GpuProfiler,
     ) -> anyhow::Result<()> {
@@ -124,7 +126,11 @@ impl Renderer {
         let mut compute_pass = profiler.scope("Raytracing", &mut compute_pass);
         compute_pass.set_pipeline(&*self.pipeline.acquire()?);
         compute_pass.set_bind_group(0, world_renderer.bind_group(), &[]);
-        compute_pass.set_bind_group(1, camera.get_bind_group(), &[]);
+        compute_pass.set_bind_group(
+            1,
+            &player_camera_binding(entity_world).context("No player exists :c")?,
+            &[],
+        );
         compute_pass.set_bind_group(2, &self.bind_group, &[]);
         compute_pass.dispatch_workgroups(output.width.div_ceil(16), output.height.div_ceil(16), 1);
 

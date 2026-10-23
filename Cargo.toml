@@ -13,6 +13,7 @@ egui-wgpu = { version = "0.35.0" }
 egui-winit = { version = "0.35.0" }
 fastnoise2 = "0.4.0"
 glam = { version = "0.34.1", features = ["bytemuck"] }
+hecs = { version = "0.11.2", features = ["default"] }
 humanize-bytes = "1.0.6"
 notify = "8.2.0"
 notify-debouncer-full = "0.7.0"

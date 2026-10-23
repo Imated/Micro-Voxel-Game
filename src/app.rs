@@ -1,6 +1,7 @@
 use crate::blit::Blitter;
-use crate::camera::Camera;
+use crate::camera::{Camera, update_player};
 use crate::display::{Display, Frame};
+use crate::ecs::components::{InputHandler, Transform};
 use crate::gui_renderer::GuiRenderer;
 use crate::render_context::RenderContext;
 use crate::renderer::{RenderTexture, Renderer};
@@ -26,11 +27,11 @@ pub struct App {
     window: Arc<Window>,
     context: RenderContext,
     display: Display,
-    camera: Camera,
     renderer: Renderer,
     blitter: Blitter,
     output: RenderTexture,
     world: World,
+    entity_world: hecs::World,
     world_renderer: WorldRenderer,
     gui_renderer: GuiRenderer,
     profiler: GpuProfiler,
@@ -58,8 +59,8 @@ impl App {
         let world_bottom = -((WORLD_SIZE.y * CHUNK_SIZE.y * BRICK_SIZE.y) as f32) / 2.0;
         let eye_height = 1.8 * VOXELS_PER_METER;
         let start_y = world_bottom + CHUNK_SIZE_IN_VOXELS.y as f32 + eye_height;
-        let camera = Camera::new(&context, Vec3::new(0.0, start_y, 0.0), 0.0_f32, 0.0_f32);
         let mut world = World::default();
+        let camera = Camera::new(&context);
         let world_renderer = WorldRenderer::new(context.clone());
         let renderer = Renderer::new(context.clone(), &output, &camera, &world_renderer)?;
         let blitter = Blitter::new(context.clone(), &output)?;
@@ -73,6 +74,15 @@ impl App {
                 max_num_pending_frames: 2,
             },
         )?;
+        let mut entity_world = hecs::World::new();
+        entity_world.spawn((
+            Transform {
+                position: Vec3::ZERO.with_y(start_y),
+                rotation: Vec3::ZERO,
+            },
+            InputHandler::default(),
+            camera,
+        ));
 
         for x in -4..4 {
             for y in 0..1 {
@@ -100,7 +110,6 @@ impl App {
             window,
             context,
             display,
-            camera,
             renderer,
             blitter,
             output,
@@ -113,11 +122,12 @@ impl App {
             vram_last_query: Instant::now(),
             world,
             speed: 3.0 * VOXELS_PER_METER,
+            entity_world,
         })
     }
 
     pub fn render(&mut self, delta_time: Duration) -> anyhow::Result<()> {
-        self.camera.update(delta_time, self.speed);
+        update_player(&mut self.entity_world, delta_time, self.speed);
         let chunks = self.world.update();
         self.world_renderer.update(chunks);
         self.update_vram_stats();
@@ -130,7 +140,7 @@ impl App {
         self.renderer.raytrace_pass(
             &mut frame,
             &self.output,
-            &self.camera,
+            &self.entity_world,
             &self.world_renderer,
             &self.profiler,
         )?;
@@ -306,8 +316,6 @@ impl App {
     }
 
     pub fn on_key_event(&mut self, key_code: KeyCode, is_pressed: bool) {
-        self.camera.process_key_event(key_code, is_pressed);
-
         match (key_code, is_pressed) {
             (KeyCode::F11, true) => {
                 if self.window.fullscreen().is_some() {
@@ -323,12 +331,22 @@ impl App {
                     .expect("theres like no way ts will fail and if it does i quit rust");
                 self.window.set_cursor_visible(true);
             }
-            _ => {}
+            (code, pressed) => {
+                for input in self.entity_world.query_mut::<&mut InputHandler>() {
+                    if pressed {
+                        input.pressed_keys.insert(code);
+                    } else {
+                        input.pressed_keys.remove(&code);
+                    }
+                }
+            }
         }
     }
 
     pub fn on_mouse_moved(&mut self, delta: Vec2) {
-        self.camera.process_mouse_movement(delta);
+        for input in self.entity_world.query_mut::<&mut InputHandler>() {
+            input.mouse_delta += delta;
+        }
     }
 
     pub fn on_window_event(&mut self, event: &WindowEvent) {

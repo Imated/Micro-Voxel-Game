@@ -23,6 +23,7 @@ mod blit;
 pub mod buffer;
 pub mod camera;
 pub mod display;
+pub mod ecs;
 pub mod gui_renderer;
 pub mod render_context;
 pub mod renderer;

@@ -1,8 +1,7 @@
-use crate::buffer::TypedBuffer;
+use crate::ecs::components::{InputHandler, TransformUniform};
 use crate::render_context::RenderContext;
-use crate::util::constants::VOXELS_PER_METER;
-use bytemuck::{Pod, Zeroable};
-use glam::{Mat4, Vec2, Vec3, Vec4};
+use crate::{buffer::TypedBuffer, ecs::components::Transform};
+use glam::Vec2;
 use std::f32::consts::FRAC_PI_2;
 use std::time::Duration;
 use wgpu::{
@@ -10,53 +9,19 @@ use wgpu::{
 };
 use winit::keyboard::KeyCode;
 
-#[rustfmt::skip]
-pub const OPENGL_TO_WGPU_MATRIX: Mat4 = Mat4::from_cols(
-    Vec4::new(1.0, 0.0, 0.0, 0.0),
-    Vec4::new(0.0, 1.0, 0.0, 0.0),
-    Vec4::new(0.0, 0.0, 0.5, 0.0),
-    Vec4::new(0.0, 0.0, 0.5, 1.0),
-);
-
-#[repr(C)]
-#[derive(Debug, Copy, Clone, Default, Pod, Zeroable)]
-pub struct CameraUniform {
-    pub position: Vec4,
-    pub rotation: Mat4,
-}
-
+#[derive(Debug)]
 pub struct Camera {
-    pub position: Vec3,
-    yaw: f32,
-    pitch: f32,
+    pub mouse_delta: Vec2,
 
-    move_forward: bool,
-    move_back: bool,
-    move_left: bool,
-    move_right: bool,
-    move_up: bool,
-    move_down: bool,
-    mouse_delta: Vec2,
-
-    buffer: TypedBuffer<CameraUniform>,
-    layout: BindGroupLayout,
-    bind_group: BindGroup,
+    pub buffer: TypedBuffer<TransformUniform>,
+    pub layout: BindGroupLayout,
+    pub bind_group: BindGroup,
 }
 
 impl Camera {
-    pub fn new<V: Into<Vec3>, Y: Into<f32>, P: Into<f32>>(
-        context: &RenderContext,
-        position: V,
-        yaw: Y,
-        pitch: P,
-    ) -> Self {
-        let position = position.into();
-
-        let uniform = CameraUniform {
-            position: position.extend(0.0),
-            rotation: Mat4::IDENTITY,
-        };
-        let buffer = TypedBuffer::new_uniform(context.clone(), uniform);
+    #[must_use]
+    pub fn new(context: &RenderContext) -> Self {
+        let buffer = TypedBuffer::new_uniform(context.clone(), TransformUniform::default());
         let layout = context
             .device
             .create_bind_group_layout(&BindGroupLayoutDescriptor {
@@ -70,73 +35,11 @@ impl Camera {
         });
 
         Self {
-            position,
-            yaw: yaw.into(),
-            pitch: pitch.into(),
-            move_forward: false,
-            move_back: false,
-            move_left: false,
-            move_right: false,
-            move_up: false,
-            move_down: false,
             mouse_delta: Vec2::default(),
             buffer,
             layout,
             bind_group,
         }
-    }
-
-    #[must_use]
-    pub fn calc_matrix(&self) -> Mat4 {
-        Mat4::from_rotation_y(self.yaw) * Mat4::from_rotation_x(self.pitch)
-    }
-
-    pub const fn process_key_event(&mut self, key_code: KeyCode, is_pressed: bool) {
-        match key_code {
-            KeyCode::KeyW | KeyCode::ArrowUp => self.move_forward = is_pressed,
-            KeyCode::KeyS | KeyCode::ArrowDown => self.move_back = is_pressed,
-            KeyCode::KeyD | KeyCode::ArrowRight => self.move_right = is_pressed,
-            KeyCode::KeyA | KeyCode::ArrowLeft => self.move_left = is_pressed,
-            KeyCode::Space => self.move_up = is_pressed,
-            KeyCode::ShiftLeft => self.move_down = is_pressed,
-            _ => {}
-        }
-    }
-
-    pub fn process_mouse_movement(&mut self, delta: Vec2) {
-        self.mouse_delta += delta;
-    }
-
-    pub fn update(&mut self, delta_time: Duration, speed: f32) {
-        const SENSITIVITY: f32 = 0.001;
-
-        let direction = Vec2::new(
-            f32::from(i8::from(self.move_right) - i8::from(self.move_left)),
-            f32::from(i8::from(self.move_forward) - i8::from(self.move_back)),
-        )
-        .normalize_or_zero();
-
-        let rotation = self.calc_matrix();
-        let forward = -rotation.z_axis.truncate().with_y(0.0).normalize_or_zero();
-        let right = rotation.x_axis.truncate().with_y(0.0).normalize_or_zero();
-        self.position += forward * direction.y * speed * delta_time.as_secs_f32();
-        self.position += right * direction.x * speed * delta_time.as_secs_f32();
-
-        self.position.y = (f32::from(i8::from(self.move_up) - i8::from(self.move_down)) * speed)
-            .mul_add(delta_time.as_secs_f32(), self.position.y);
-
-        self.yaw = self.mouse_delta.x.mul_add(-SENSITIVITY, self.yaw);
-        self.pitch = self.mouse_delta.y.mul_add(-SENSITIVITY, self.pitch);
-
-        self.mouse_delta = Vec2::ZERO;
-
-        // -/+ 0.001 so when u look all the way down or all the way up it doesn't invert forward vector
-        self.pitch = self.pitch.clamp(-FRAC_PI_2 + 0.001, FRAC_PI_2 - 0.001);
-
-        self.buffer.update(CameraUniform {
-            position: self.position.extend(0.0),
-            rotation,
-        });
     }
 
     #[must_use]
@@ -147,5 +50,67 @@ impl Camera {
     #[must_use]
     pub const fn get_bind_group(&self) -> &BindGroup {
         &self.bind_group
+    }
+}
+
+pub fn player_camera_binding(entity_world: &hecs::World) -> Option<BindGroup> {
+    if let Some(camera) = entity_world.query::<&Camera>().iter().next() {
+        return Some(camera.get_bind_group().clone()); // there shgould only be one
+    }
+    None
+}
+
+pub fn update_player(entity_world: &mut hecs::World, delta_time: Duration, speed: f32) {
+    const SENSITIVITY: f32 = 0.001;
+    for (transform, camera, input) in
+        entity_world.query_mut::<(&mut Transform, &mut Camera, &mut InputHandler)>()
+    {
+        let direction = Vec2::new(
+            f32::from(
+                i8::from(
+                    input.is_key_down(KeyCode::KeyD) || input.is_key_down(KeyCode::ArrowRight),
+                ) - i8::from(
+                    input.is_key_down(KeyCode::KeyA) || input.is_key_down(KeyCode::ArrowLeft),
+                ),
+            ),
+            f32::from(
+                i8::from(input.is_key_down(KeyCode::KeyW) || input.is_key_down(KeyCode::ArrowUp))
+                    - i8::from(
+                        input.is_key_down(KeyCode::KeyS) || input.is_key_down(KeyCode::ArrowDown),
+                    ),
+            ),
+        )
+        .normalize_or_zero();
+
+        let rotation = transform.rotation_matrix();
+        let forward = -rotation.z_axis.truncate().with_y(0.0).normalize_or_zero();
+        let right = rotation.x_axis.truncate().with_y(0.0).normalize_or_zero();
+        transform.position += forward * direction.y * speed * delta_time.as_secs_f32();
+        transform.position += right * direction.x * speed * delta_time.as_secs_f32();
+
+        transform.position.y = (f32::from(
+            i8::from(input.is_key_down(KeyCode::Space))
+                - i8::from(input.is_key_down(KeyCode::ShiftLeft)),
+        ) * speed)
+            .mul_add(delta_time.as_secs_f32(), transform.position.y);
+
+        transform.rotation.y = input
+            .mouse_delta
+            .x
+            .mul_add(-SENSITIVITY, transform.rotation.y);
+        transform.rotation.x = input
+            .mouse_delta
+            .y
+            .mul_add(-SENSITIVITY, transform.rotation.x);
+
+        input.mouse_delta = Vec2::ZERO;
+
+        // -/+ 0.001 so when u look all the way down or all the way up it doesn't invert forward vector
+        transform.rotation.x = transform
+            .rotation
+            .x
+            .clamp(-FRAC_PI_2 + 0.001, FRAC_PI_2 - 0.001);
+
+        camera.buffer.update(transform.transformation_uniform());
     }
 }

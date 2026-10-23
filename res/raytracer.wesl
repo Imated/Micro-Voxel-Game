@@ -248,7 +248,8 @@ fn voxel_color(info: HitInfo) -> vec4<f32> {
     let F0 = vec3<f32>(0.04);
 
     let light_color = vec3<f32>(1.0, 0.95, 0.85) * 2.5;
-    let ambient_color = vec3<f32>(0.5, 0.7, 1.0) * 0.7;
+    let sky_color = vec3<f32>(0.75, 1.0, 1.0) * 0.7;
+    let ground_color = vec3<f32>(0.25, 0.22, 0.18) * 0.4;
 
     let N = normalize(info.hit_normal);
     let L = normalize(SUN_DIR);
@@ -258,7 +259,8 @@ fn voxel_color(info: HitInfo) -> vec4<f32> {
 
     const AO_DIRECT: f32 = 1.0;
     let ao = compute_ao(info);
-    let ambient = albedo * ambient_color * ao;
+    let sky_weight = 0.5 + 0.5 * N.y;
+    let ambient = albedo * mix(ground_color, sky_color, sky_weight) * ao;
 
     if N_dot_L <= 0.0 {
         return vec4<f32>(ambient, 1.0);
@@ -275,7 +277,8 @@ fn voxel_color(info: HitInfo) -> vec4<f32> {
     let cook_torrance = cook_torrance_numerator / cook_torrance_denominator;
 
     let BRDF = Kd * lambert + cook_torrance;
-    let outgoing_light = BRDF * light_color * N_dot_L * mix(1.0, ao, AO_DIRECT);
+    let shadow = shadow_color(info.hit_point, N, L);
+    let outgoing_light = BRDF * light_color * N_dot_L * shadow * mix(1.0, ao, AO_DIRECT);
     return vec4<f32>(outgoing_light + ambient, 1.0);
 }
 
