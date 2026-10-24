@@ -14,7 +14,7 @@ pub const CHUNK_SIZE_IN_VOXELS: USizeVec3 = USizeVec3::new(
     (CHUNK_SIZE.z * BRICK_SIZE.z) as usize,
 );
 
-#[derive(Debug)]
+#[derive(Debug, Default, PartialEq)]
 pub struct Chunk {
     pub voxels: Vec<Vec<Vec<u32>>>,
 }

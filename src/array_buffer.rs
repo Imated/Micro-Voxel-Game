@@ -2,10 +2,9 @@ use crate::render_context::RenderContext;
 use bytemuck::{Pod, Zeroable, cast_slice};
 use std::any::type_name;
 use std::marker::PhantomData;
-use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use wgpu::{
-    BindGroupEntry, BindGroupLayoutEntry, BindingType, Buffer, BufferBindingType, BufferUsages,
-    ShaderStages,
+    BindGroupEntry, BindGroupLayoutEntry, BindingType, Buffer, BufferBindingType, BufferDescriptor,
+    BufferUsages, ShaderStages,
 };
 
 #[derive(Debug)]
@@ -27,7 +26,7 @@ impl<T: Pod + Zeroable> TypedArrayBuffer<T> {
             ),
             buffer_type: BufferBindingType::Uniform,
             _t: PhantomData,
-            len: data.len(),
+            len: data.len().next_power_of_two(),
             context,
         }
     }
@@ -41,7 +40,7 @@ impl<T: Pod + Zeroable> TypedArrayBuffer<T> {
             ),
             buffer_type: BufferBindingType::Storage { read_only: true },
             _t: PhantomData,
-            len: data.len(),
+            len: data.len().next_power_of_two(),
             context,
         }
     }
@@ -74,15 +73,8 @@ impl<T: Pod + Zeroable> TypedArrayBuffer<T> {
 
     pub fn update(&mut self, data: &[T]) -> bool {
         if data.len() > self.len {
-            //resize buffer
-            self.inner = self
-                .context
-                .device
-                .create_buffer_init(&BufferInitDescriptor {
-                    label: Some(type_name::<T>()),
-                    usage: self.inner.usage(),
-                    contents: cast_slice(data),
-                });
+            self.inner = Self::create_buffer(&self.context, data, self.inner.usage());
+            self.len = data.len().next_power_of_two();
             return true;
         }
         self.context
@@ -92,10 +84,13 @@ impl<T: Pod + Zeroable> TypedArrayBuffer<T> {
     }
 
     fn create_buffer(context: &RenderContext, data: &[T], usage: BufferUsages) -> Buffer {
-        context.device.create_buffer_init(&BufferInitDescriptor {
+        let buffer = context.device.create_buffer(&BufferDescriptor {
             label: Some(type_name::<T>()),
+            size: (data.len().next_power_of_two() * size_of::<T>()) as u64,
             usage,
-            contents: cast_slice(data),
-        })
+            mapped_at_creation: false,
+        });
+        context.queue.write_buffer(&buffer, 0, cast_slice(data));
+        buffer
     }
 }

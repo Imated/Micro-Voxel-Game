@@ -1,10 +1,11 @@
 use crate::array_buffer::TypedArrayBuffer;
 use crate::render_context::RenderContext;
 use crate::util::constants::WORLD_SIZE;
-use crate::util::constants::WORLD_SIZE_HALF;
-use crate::util::flatten;
+use crate::util::thread::ThreadPool;
+use crate::util::torodial_pos;
 use crate::world::ChunkPos;
 use crate::world::chunk::Chunk;
+use crate::world::render::brick::Brick;
 use crate::world::render::brick_pool::BrickPool;
 use crate::world::render::gpu_chunk::GpuChunk;
 use std::collections::HashMap;
@@ -15,6 +16,7 @@ use wgpu::{
 
 pub struct WorldRenderer {
     context: RenderContext,
+    thread_pool: ThreadPool<Vec<(usize, Brick)>>,
 
     pub brick_pool: BrickPool,
     chunk_grid: Box<[GpuChunk]>,
@@ -58,17 +60,31 @@ impl WorldRenderer {
             chunks_bind_group: bind_group,
             chunk_grid,
             context,
+            thread_pool: ThreadPool::default(),
         }
     }
 
     pub fn update(&mut self, chunks: Option<HashMap<ChunkPos, Arc<Chunk>>>) {
         if let Some(chunks) = chunks {
             for (pos, chunk) in chunks {
-                let offsetted_coords = pos.0 + WORLD_SIZE_HALF.as_ivec3();
-                let index = (offsetted_coords.rem_euclid(WORLD_SIZE.as_ivec3())).as_uvec3();
-                self.chunk_grid[flatten(index.x, index.y, index.z, WORLD_SIZE) as usize] =
-                    GpuChunk::new(&chunk, &mut self.brick_pool);
+                self.thread_pool
+                    .queue(pos, move |_| GpuChunk::build_bricks(&chunk));
             }
+        }
+
+        self.thread_pool.create_data_threads();
+        let finished_chunks = self.thread_pool.poll_data_threads();
+        for (&pos, bricks) in &finished_chunks {
+            let slot = &mut self.chunk_grid[torodial_pos(pos)];
+            for &brick in &slot.bricks {
+                if brick != Brick::EMPTY as u32 {
+                    self.brick_pool.free(brick as usize);
+                }
+            }
+
+            *slot = GpuChunk::from_bricks(bricks, &mut self.brick_pool);
+        }
+        if !finished_chunks.is_empty() {
             self.chunks.update(&self.chunk_grid);
         }
 

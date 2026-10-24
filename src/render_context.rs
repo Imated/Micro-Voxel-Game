@@ -39,7 +39,15 @@ impl RenderContext {
                     | Features::TIMESTAMP_QUERY_INSIDE_PASSES
                     | Features::TIMESTAMP_QUERY_INSIDE_ENCODERS,
                 experimental_features: ExperimentalFeatures::disabled(),
-                required_limits: Limits::default(),
+                required_limits: Limits {
+                    max_storage_buffer_binding_size: adapter
+                        .limits()
+                        .max_storage_buffer_binding_size,
+                    max_uniform_buffer_binding_size: adapter
+                        .limits()
+                        .max_uniform_buffer_binding_size,
+                    ..Default::default()
+                },
                 memory_hints: MemoryHints::Performance,
                 trace: Trace::Off,
             })

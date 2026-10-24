@@ -74,7 +74,7 @@ impl<T: Default + PartialEq> FreeList<T> {
         // if self.rc[index] == 0 {
         self.slots[index] = T::default();
         self.reserved.set(index, false);
-        self.greatest_used_index = self.reserved.len() - self.reserved.trailing_zeros();
+        self.greatest_used_index = self.reserved.last_one().unwrap_or(0);
         self.next = self.next.min(index);
         // }
     }

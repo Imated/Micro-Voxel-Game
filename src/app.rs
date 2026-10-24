@@ -1,7 +1,7 @@
 use crate::blit::Blitter;
 use crate::camera::{Camera, update_player};
 use crate::display::{Display, Frame};
-use crate::ecs::components::{InputHandler, Transform};
+use crate::ecs::components::{ChunkLoader, InputHandler, Transform};
 use crate::gui_renderer::GuiRenderer;
 use crate::render_context::RenderContext;
 use crate::renderer::{RenderTexture, Renderer};
@@ -16,7 +16,6 @@ use humanize_bytes::humanize_bytes_binary;
 use std::num::NonZeroU32;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tracing::info;
 use wgpu::wgc::api::Vulkan;
 use wgpu_profiler::{GpuProfiler, GpuProfilerSettings};
 use winit::event::{ElementState, MouseButton, WindowEvent};
@@ -82,17 +81,16 @@ impl App {
             },
             InputHandler::default(),
             camera,
+            ChunkLoader { radius: 32 },
         ));
 
-        for x in -4..4 {
+        for x in -16..16 {
             for y in 0..1 {
-                for z in -4..4 {
+                for z in -16..16 {
                     world.load_chunk(ChunkPos(ivec3(x, y, z)));
                 }
             }
         }
-
-        info!("bricks: {}", world_renderer.brick_pool.len());
 
         let hal_instance = unsafe { context.instance.as_hal::<Vulkan>() }.expect("use vulkan noob");
         let vk_physical_device = unsafe {

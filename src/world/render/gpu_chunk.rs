@@ -39,7 +39,12 @@ impl Default for GpuChunk {
 
 impl GpuChunk {
     pub fn new(chunk: &Arc<Chunk>, brick_pool: &mut BrickPool) -> Self {
-        let mut gpu_chunk = Self::default();
+        Self::from_bricks(&Self::build_bricks(chunk), brick_pool)
+    }
+
+    #[must_use]
+    pub fn build_bricks(chunk: &Arc<Chunk>) -> Vec<(usize, Brick)> {
+        let mut bricks = Vec::new();
 
         for bx in 0..CHUNK_SIZE.x {
             for by in 0..CHUNK_SIZE.y {
@@ -70,9 +75,18 @@ impl GpuChunk {
                     };
 
                     let brick_index = flatten(bx, by, bz, CHUNK_SIZE) as usize;
-                    gpu_chunk.bricks[brick_index] = brick_pool.push(brick) as u32;
+                    bricks.push((brick_index, brick));
                 }
             }
+        }
+
+        bricks
+    }
+
+    pub fn from_bricks(bricks: &[(usize, Brick)], brick_pool: &mut BrickPool) -> Self {
+        let mut gpu_chunk = Self::default();
+        for &(brick_index, brick) in bricks {
+            gpu_chunk.bricks[brick_index] = brick_pool.push(brick) as u32;
         }
 
         gpu_chunk.rebuild_metadata();

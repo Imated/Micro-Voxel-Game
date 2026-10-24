@@ -92,17 +92,12 @@ struct Brick {
 }
 
 const INFINITY: f32 = 3.402823466e+38;
-const WORLD_SIZE: vec3<i32> = vec3<i32>(8, 1, 8);
+const WORLD_SIZE: vec3<i32> = vec3<i32>(32, 1, 32);
 const CHUNK_SIZE: i32 = 8;
 const BRICK_SIZE: i32 = 8;
 const WORLD_VOXELS: vec3<i32> = WORLD_SIZE * CHUNK_SIZE * BRICK_SIZE;
 const EPSILON: f32 = 0.000001;
 const PI: f32 = 3.14159265;
-
-// Rays per pixel is SSAA * SSAA, on a regular sub-pixel grid. One sample per pixel cannot
-// represent voxel edges once a voxel projects to less than a pixel, which breaks distant
-// block edges into disconnected speckle.
-const SSAA: i32 = 2;
 
 // Debug views. DEBUG_NORMALS paints the surface normal of every hit; DEBUG_VALIDATE
 // re-traces each ray without the acceleration structure and flags any disagreement.
@@ -113,7 +108,7 @@ const SUN_DIR: vec3<f32> = vec3<f32>(0.3, 1.0, 0.5);
 const SUN_ANGULAR_RADIUS: f32 = 0.0093;
 
 @group(0) @binding(0)
-var<storage, read> chunks: array<Chunk, 64>; // 8 * 1 * 8
+var<storage, read> chunks: array<Chunk, 1024>; // 32 * 1 * 32
 
 @group(0) @binding(1)
 var<storage, read> brick_pool: array<Brick>;
