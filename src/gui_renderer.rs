@@ -32,7 +32,11 @@ impl GuiRenderer {
             Some(2 * 1024),
         );
 
-        let egui_renderer = Renderer::new(&context.device, format, RendererOptions::default());
+        let egui_renderer = Renderer::new(
+            &context.device,
+            format.remove_srgb_suffix(),
+            RendererOptions::default(),
+        );
 
         Self {
             state: egui_state,
@@ -88,7 +92,7 @@ impl GuiRenderer {
             .begin_render_pass(&RenderPassDescriptor {
                 label: Some("eGUI Pass"),
                 color_attachments: &[Some(RenderPassColorAttachment {
-                    view: &frame.surface_view,
+                    view: &frame.surface_view_nonsrgb,
                     depth_slice: None,
                     resolve_target: None,
                     ops: Operations {

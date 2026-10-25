@@ -40,7 +40,7 @@ impl Display {
             height: size.height,
             present_mode: PresentMode::AutoNoVsync,
             alpha_mode: surface_caps.alpha_modes[0],
-            view_formats: vec![],
+            view_formats: vec![surface_format.remove_srgb_suffix()],
             desired_maximum_frame_latency: 2,
         };
 
@@ -89,6 +89,11 @@ impl Display {
             .texture
             .create_view(&TextureViewDescriptor::default());
 
+        let view_nonsrgb = output.texture.create_view(&TextureViewDescriptor {
+            format: Some(self.surface_config.format.remove_srgb_suffix()),
+            ..Default::default()
+        });
+
         Some(Frame {
             surface_texture: output,
             surface_view: view,
@@ -96,6 +101,7 @@ impl Display {
                 .context
                 .device
                 .create_command_encoder(&CommandEncoderDescriptor::default()),
+            surface_view_nonsrgb: view_nonsrgb,
         })
     }
 
@@ -107,5 +113,6 @@ impl Display {
 pub struct Frame {
     pub surface_texture: SurfaceTexture,
     pub surface_view: TextureView,
+    pub surface_view_nonsrgb: TextureView,
     pub encoder: CommandEncoder,
 }
