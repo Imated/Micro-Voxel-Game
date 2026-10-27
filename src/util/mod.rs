@@ -1,5 +1,5 @@
-use glam::UVec3;
-use std::{fmt::Debug, process::abort};
+use glam::{UVec3, ivec3};
+use std::{collections::HashSet, fmt::Debug, process::abort};
 use tracing::error;
 
 use crate::{
@@ -22,6 +22,23 @@ pub fn torodial_pos(pos: ChunkPos) -> usize {
     let offsetted_coords = pos.0 + WORLD_SIZE_HALF.as_ivec3();
     let index = (offsetted_coords.rem_euclid(WORLD_SIZE.as_ivec3())).as_uvec3();
     flatten(index.x, index.y, index.z, WORLD_SIZE) as usize
+}
+
+#[must_use]
+pub fn get_chunks_in_radius(center: ChunkPos, radius: i32) -> HashSet<ChunkPos> {
+    let mut chunks = HashSet::new();
+    let radius_sq = radius * radius;
+
+    for x in -radius..=radius {
+        for z in -radius..=radius {
+            let dist_sq = x * x + z * z;
+            if dist_sq <= radius_sq {
+                chunks.insert(ChunkPos(center.0 + ivec3(x, 0, z)));
+            }
+        }
+    }
+
+    chunks
 }
 
 pub trait ResultExt<T> {

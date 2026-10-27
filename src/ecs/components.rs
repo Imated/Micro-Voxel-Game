@@ -4,6 +4,8 @@ use bytemuck::{Pod, Zeroable};
 use glam::{Mat4, Vec2, Vec3, Vec4};
 use winit::keyboard::KeyCode;
 
+use crate::world::ChunkPos;
+
 #[repr(C)]
 #[derive(Debug, Copy, Clone, Default, Pod, Zeroable)]
 pub struct TransformUniform {
@@ -47,4 +49,5 @@ impl InputHandler {
 
 pub struct ChunkLoader {
     pub radius: u16,
+    pub previous_chunk: ChunkPos,
 }

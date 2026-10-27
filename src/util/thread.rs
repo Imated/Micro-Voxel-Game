@@ -6,7 +6,7 @@ use std::{
 
 use crate::{util::ResultExt, world::ChunkPos};
 
-pub const MAX_DATA_THREADS: usize = 8;
+pub const MAX_DATA_THREADS: usize = 16;
 
 type Task<T> = Box<dyn FnOnce(ChunkPos) -> T + Send + 'static>;
 
@@ -19,6 +19,11 @@ pub struct ThreadPool<T: Send + 'static> {
 impl<T: Send + 'static> ThreadPool<T> {
     pub fn queue<F: FnOnce(ChunkPos) -> T + Send + 'static>(&mut self, pos: ChunkPos, f: F) {
         self.task_queue.insert(pos, Box::new(f));
+    }
+
+    pub fn deque(&mut self, pos: ChunkPos) {
+        self.task_queue.remove_entry(&pos);
+        self.tasks.remove_entry(&pos);
     }
 
     #[must_use]

@@ -6,12 +6,13 @@ use crate::gui_renderer::GuiRenderer;
 use crate::render_context::RenderContext;
 use crate::renderer::{RenderTexture, Renderer};
 use crate::util::constants::{BRICK_SIZE, CHUNK_SIZE, VOXELS_PER_METER, WORLD_SIZE};
+use crate::util::get_chunks_in_radius;
 use crate::world::chunk::CHUNK_SIZE_IN_VOXELS;
 use crate::world::render::world_renderer::WorldRenderer;
 use crate::world::{ChunkPos, World};
 use ash::vk::PhysicalDeviceMemoryBudgetPropertiesEXT;
 use egui::{Align2, Color32, FontId, RichText, Sense, Slider, vec2};
-use glam::{Vec2, Vec3, ivec3};
+use glam::{Vec2, Vec3, Vec3Swizzles, ivec3};
 use humanize_bytes::humanize_bytes_binary;
 use std::num::NonZeroU32;
 use std::sync::Arc;
@@ -58,7 +59,7 @@ impl App {
         let world_bottom = -((WORLD_SIZE.y * CHUNK_SIZE.y * BRICK_SIZE.y) as f32) / 2.0;
         let eye_height = 1.8 * VOXELS_PER_METER;
         let start_y = world_bottom + CHUNK_SIZE_IN_VOXELS.y as f32 + eye_height;
-        let mut world = World::default();
+        let world = World::default();
         let camera = Camera::new(&context);
         let world_renderer = WorldRenderer::new(context.clone());
         let renderer = Renderer::new(context.clone(), &output, &camera, &world_renderer)?;
@@ -81,16 +82,16 @@ impl App {
             },
             InputHandler::default(),
             camera,
-            ChunkLoader { radius: 32 },
+            ChunkLoader {
+                radius: 31,
+                previous_chunk: ChunkPos(ivec3(9999, 9999, 9999)),
+            },
         ));
 
-        for x in -16..16 {
-            for y in 0..1 {
-                for z in -16..16 {
-                    world.load_chunk(ChunkPos(ivec3(x, y, z)));
-                }
-            }
-        }
+        // ig also dont rebuild entire world on chunk change
+        // and dont pass enitre world like only pass part of buffer that changed
+        // oh yea lods wen
+        // SWITCH TO FUCKING RAYON THREADPOOL
 
         let hal_instance = unsafe { context.instance.as_hal::<Vulkan>() }.expect("use vulkan noob");
         let vk_physical_device = unsafe {
@@ -126,8 +127,42 @@ impl App {
 
     pub fn render(&mut self, delta_time: Duration) -> anyhow::Result<()> {
         update_player(&mut self.entity_world, delta_time, self.speed);
-        let chunks = self.world.update();
-        self.world_renderer.update(chunks);
+
+        // chunk loading stuff
+        for (transform, loader) in self
+            .entity_world
+            .query_mut::<(&Transform, &mut ChunkLoader)>()
+        {
+            let mut current_chunk = ChunkPos(
+                (transform.position / CHUNK_SIZE_IN_VOXELS.as_vec3())
+                    .floor()
+                    .as_ivec3(),
+            );
+            current_chunk.0.y = 0;
+            if current_chunk.0.xz() == loader.previous_chunk.0.xz() {
+                continue;
+            }
+
+            let chunks_load = get_chunks_in_radius(current_chunk, loader.radius as i32);
+            let chunks_unload = get_chunks_in_radius(loader.previous_chunk, loader.radius as i32);
+            let mut total_chunks = chunks_load.difference(&chunks_unload).collect::<Vec<_>>();
+            total_chunks.sort_by_key(|&&pos| pos.0.distance_squared(current_chunk.0));
+
+            for &pos in total_chunks {
+                self.world.load_chunk(pos);
+            }
+
+            for &pos in chunks_unload.difference(&chunks_load) {
+                self.world.unload_chunk(pos);
+            }
+
+            loader.previous_chunk = current_chunk;
+            self.world_renderer.set_center(current_chunk);
+        }
+
+        let events = self.world.update();
+        self.world_renderer.update_world_events(events);
+        self.world_renderer.update();
         self.update_vram_stats();
 
         // acquire frame and skip if smth happened and hope it works next frame

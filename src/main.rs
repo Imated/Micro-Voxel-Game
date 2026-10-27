@@ -39,6 +39,7 @@ pub enum AppRunner {
         frame_count: u64,
         window: Arc<Window>,
         delta_time: Duration,
+        last_frame: Instant,
     },
 }
 
@@ -60,6 +61,7 @@ impl ApplicationHandler for AppRunner {
             frame_count: 0,
             window,
             delta_time: Duration::ZERO,
+            last_frame: Instant::now(),
         };
     }
 
@@ -74,7 +76,7 @@ impl ApplicationHandler for AppRunner {
             frame_count,
             window,
             delta_time,
-            ..
+            last_frame,
         } = self
         else {
             return;
@@ -84,12 +86,12 @@ impl ApplicationHandler for AppRunner {
 
         match event {
             WindowEvent::RedrawRequested => {
-                let prev = Instant::now();
+                let now = Instant::now();
+                *delta_time = now - *last_frame;
+                *last_frame = now;
 
                 app.render(*delta_time)
                     .unwrap_or_abort("Failed to render frame!");
-
-                *delta_time = prev.elapsed();
                 let threshold = (512.0 * (1.0 - delta_time.as_secs_f32())).max(5.0) as u64;
                 if *frame_count % threshold == 0 {
                     window.set_title(&format!(

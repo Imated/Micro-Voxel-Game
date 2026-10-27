@@ -15,9 +15,10 @@ fastnoise2 = "0.4.0"
 glam = { version = "0.34.1", features = ["bytemuck"] }
 hecs = { version = "0.11.2", features = ["default"] }
 humanize-bytes = "1.0.6"
-notify = "8.2.0"
+notify = "8.2.1"
 notify-debouncer-full = "0.7.0"
 pollster = "1.0.1"
+rayon = "1.12.0"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "ansi"] }
 wesl = "0.6.0"
